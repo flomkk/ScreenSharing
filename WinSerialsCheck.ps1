@@ -16,7 +16,7 @@ Write-Host ""
 # ==== UUIDs and Unique Identifiers ====
 $winuuid        = (Get-WmiObject Win32_ComputerSystemProduct).UUID
 $biosUUID       = (Get-WmiObject Win32_BIOS).SerialNumber
-$manufacturer = (Get-CimInstance Win32_ComputerSystem).Manufacturer
+$manufacturer   = (Get-CimInstance Win32_ComputerSystem).Manufacturer
 $baseboardSN    = (Get-WmiObject Win32_BaseBoard).SerialNumber
 $cpuID          = (Get-WmiObject Win32_Processor | Select-Object -First 1).ProcessorId
 $productID      = (Get-WmiObject Win32_OperatingSystem).SerialNumber
