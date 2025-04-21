@@ -16,8 +16,8 @@ Write-Host ""
 $winuuid = (Get-WmiObject Win32_ComputerSystemProduct).UUID
 $systemuuid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 
-Write-Host -ForegroundColor Cyan "Windows UUID     : $winuuid"
-Write-Host -ForegroundColor Cyan "System User UUID : $systemuuid"
+Write-Host -ForegroundColor Cyan " Windows UUID     : $winuuid"
+Write-Host -ForegroundColor Cyan " System User UUID : $systemuuid"
 
 Write-Host ""
 Pause
