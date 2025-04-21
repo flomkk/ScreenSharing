@@ -36,7 +36,7 @@ $i = 0
 foreach ($disk in $disks) {
     if ($disk.SerialNumber) {
         $serial = $disk.SerialNumber.Trim()
-        Write-Host -ForegroundColor DarkCyan "  Disk $i : $serial"
+        Write-Host -ForegroundColor DarkCyan "  Disk $i                : $serial"
         $i++
     }
 }
