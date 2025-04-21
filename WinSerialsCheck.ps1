@@ -1,4 +1,4 @@
-$host.ui.RawUI.WindowTitle = "CHH Viewer - Made by flomkk"
+$host.ui.RawUI.WindowTitle = "WinSerials - Made by flomkk"
 Clear-Host
 Write-Host ""
 Write-Host -ForegroundColor Magenta @"
