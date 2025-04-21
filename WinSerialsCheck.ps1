@@ -38,10 +38,10 @@ if ($gpus.Count -eq 0) {
 } else {
     $i = 0
     foreach ($gpu in $gpus) {
-        Write-Host -ForegroundColor DarkCyan "  GPU $i : $($gpu.Name)"
-        Write-Host -ForegroundColor DarkGray  "   Device ID   : $($gpu.DeviceID)"
-        Write-Host -ForegroundColor DarkGray  "   PNP ID      : $($gpu.PNPDeviceID)"
-        Write-Host -ForegroundColor DarkGray  "   Driver Ver  : $($gpu.DriverVersion)"
+        Write-Host -ForegroundColor DarkCyan "  GPU $i                 : $($gpu.Name)"
+        Write-Host -ForegroundColor DarkGray  "   Device ID            : $($gpu.DeviceID)"
+        Write-Host -ForegroundColor DarkGray  "   PNP ID               : $($gpu.PNPDeviceID)"
+        Write-Host -ForegroundColor DarkGray  "   Driver Version       : $($gpu.DriverVersion)"
         $i++
     }
 }
