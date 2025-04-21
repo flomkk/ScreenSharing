@@ -29,6 +29,23 @@ Write-Host -ForegroundColor Cyan " BIOS UUID              : $biosUUID"
 Write-Host -ForegroundColor Cyan " Baseboard Serial       : $baseboardSN"
 Write-Host -ForegroundColor Cyan " Processor ID (CPU ID)  : $cpuID"
 
+# ==== GPU Info ====
+Write-Host -ForegroundColor Cyan " GPU Info (via WMI)     :"
+$gpus = Get-CimInstance Win32_VideoController
+
+if ($gpus.Count -eq 0) {
+    Write-Host -ForegroundColor Red " No GPU information found."
+} else {
+    $i = 0
+    foreach ($gpu in $gpus) {
+        Write-Host -ForegroundColor DarkCyan "  GPU $i : $($gpu.Name)"
+        Write-Host -ForegroundColor DarkGray  "   Device ID   : $($gpu.DeviceID)"
+        Write-Host -ForegroundColor DarkGray  "   PNP ID      : $($gpu.PNPDeviceID)"
+        Write-Host -ForegroundColor DarkGray  "   Driver Ver  : $($gpu.DriverVersion)"
+        $i++
+    }
+}
+
 # ==== Disk Serial Numbers ====
 Write-Host -ForegroundColor Cyan " Disk Serial Numbers    :"
 $disks = Get-WmiObject Win32_PhysicalMedia
