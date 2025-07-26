@@ -1,8 +1,6 @@
 $host.ui.RawUI.WindowTitle = "FiveM Cache Cleaner - Made by flomkk"
 Clear-Host
 
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-
 Write-Host ""
 Write-Host -ForegroundColor Magenta @"
    ███╗   ██╗ █████╗ ██████╗  ██████╗ ██████╗      ██████╗██╗████████╗██╗   ██╗
