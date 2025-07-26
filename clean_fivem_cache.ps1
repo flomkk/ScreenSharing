@@ -15,18 +15,18 @@ Write-Host -ForegroundColor White "        Made by flomkk - " -NoNewLine
 Write-Host -ForegroundColor White "discord.gg/narcocity"
 Write-Host ""
 
-Write-Host "Beende FiveM Prozesse..." -ForegroundColor Yellow
+Write-Host "  Beende FiveM Prozesse..." -ForegroundColor Yellow
 Get-Process FiveM, FXServer -ErrorAction SilentlyContinue | Stop-Process -Force
 
 $cachePath = Join-Path $env:LocalAppData "FiveM\FiveM.app\cache"
 
 if (Test-Path $cachePath) {
-    Write-Host "Leere Cache-Verzeichnis: $cachePath" -ForegroundColor Yellow
+    Write-Host "  Leere Cache-Verzeichnis: $cachePath" -ForegroundColor Yellow
     Remove-Item $cachePath -Recurse -Force
-    Write-Host "Cache erfolgreich geleert." -ForegroundColor Green
+    Write-Host "  Cache erfolgreich geleert." -ForegroundColor Green
 } else {
-    Write-Host "Cache-Verzeichnis nicht in $cachePath gefunden. Hast du FiveM wo anders Installiert?" -ForegroundColor Red
+    Write-Host "  Cache-Verzeichnis nicht in $cachePath gefunden. Hast du FiveM wo anders Installiert?" -ForegroundColor Red
 }
 
 Write-Host ""
-Read-Host -Prompt "Drücke ENTER zum Beenden"
+Read-Host -Prompt "  Drücke ENTER zum Beenden"
