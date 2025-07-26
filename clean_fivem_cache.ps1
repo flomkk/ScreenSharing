@@ -21,11 +21,11 @@ Get-Process FiveM, FXServer -ErrorAction SilentlyContinue | Stop-Process -Force
 $cachePath = Join-Path $env:LocalAppData "FiveM\FiveM.app\cache"
 
 if (Test-Path $cachePath) {
-    Write-Host "Leere Cache-Verzeichnis: $cachePath" -ForegroundColor Green
+    Write-Host "Leere Cache-Verzeichnis: $cachePath" -ForegroundColor Yellow
     Remove-Item $cachePath -Recurse -Force
     Write-Host "Cache erfolgreich geleert." -ForegroundColor Green
 } else {
-    Write-Host "Cache-Verzeichnis nicht gefunden: $cachePath" -ForegroundColor Yellow
+    Write-Host "Cache-Verzeichnis nicht in $cachePath gefunden. Hast du FiveM wo anders Installiert?" -ForegroundColor Red
 }
 
 Write-Host ""
