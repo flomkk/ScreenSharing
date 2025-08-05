@@ -1,20 +1,3 @@
-$host.ui.RawUI.WindowTitle = "Check Screen Recording - Made by flomkk"
-Clear-Host
-
-Write-Host ""
-Write-Host -ForegroundColor Magenta @"
-   ███╗   ██╗ █████╗ ██████╗  ██████╗ ██████╗      ██████╗██╗████████╗██╗   ██╗
-   ████╗  ██║██╔══██╗██╔══██╗██╔════╝██╔═══██╗    ██╔════╝██║╚══██╔══╝╚██╗ ██╔╝
-   ██╔██╗ ██║███████║██████╔╝██║     ██║   ██║    ██║     ██║   ██║    ╚████╔╝
-   ██║╚██╗██║██╔══██║██╔══██╗██║     ██║   ██║    ██║     ██║   ██║     ╚██╔╝
-   ██║ ╚████║██║  ██║██║  ██║╚██████╗╚██████╔╝    ╚██████╗██║   ██║      ██║
-   ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝      ╚═════╝╚═╝   ╚═╝      ╚═╝
-"@
-
-Write-Host -ForegroundColor White "        Made by flomkk - " -NoNewLine
-Write-Host -ForegroundColor White "discord.gg/narcocity"
-Write-Host ""
-
 param(
     [string[]]$ProcessNames = @(
         'obs64', 'obs',
@@ -34,6 +17,23 @@ param(
         'LoiLoGameRecorder'
     )
 )
+
+$host.ui.RawUI.WindowTitle = "Check Screen Recording - Made by flomkk"
+Clear-Host
+
+Write-Host ""
+Write-Host -ForegroundColor Magenta @"
+   ███╗   ██╗ █████╗ ██████╗  ██████╗ ██████╗      ██████╗██╗████████╗██╗   ██╗
+   ████╗  ██║██╔══██╗██╔══██╗██╔════╝██╔═══██╗    ██╔════╝██║╚══██╔══╝╚██╗ ██╔╝
+   ██╔██╗ ██║███████║██████╔╝██║     ██║   ██║    ██║     ██║   ██║    ╚████╔╝
+   ██║╚██╗██║██╔══██║██╔══██╗██║     ██║   ██║    ██║     ██║   ██║     ╚██╔╝
+   ██║ ╚████║██║  ██║██║  ██║╚██████╗╚██████╔╝    ╚██████╗██║   ██║      ██║
+   ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝      ╚═════╝╚═╝   ╚═╝      ╚═╝
+"@
+
+Write-Host -ForegroundColor White "        Made by flomkk - " -NoNewLine
+Write-Host -ForegroundColor White "discord.gg/narcocity"
+Write-Host ""
 
 $ProcessDescriptions = @{
     'obs64' = 'OBS Studio (64-bit)'
