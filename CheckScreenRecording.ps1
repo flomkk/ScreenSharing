@@ -14,7 +14,8 @@ param(
         'Ezvid',
         'XSplitBroadcaster','XSplit.Core','XSplitGamecaster',
         'Screenrec',
-        'LoiLoGameRecorder'
+        'LoiLoGameRecorder',
+        'krisp'
     )
 )
 
