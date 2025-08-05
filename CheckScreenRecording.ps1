@@ -1,4 +1,4 @@
-$host.ui.RawUI.WindowTitle = "FiveM Cache Cleaner - Made by flomkk"
+$host.ui.RawUI.WindowTitle = "Check Screen Recording - Made by flomkk"
 Clear-Host
 
 Write-Host ""
