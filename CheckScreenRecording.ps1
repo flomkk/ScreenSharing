@@ -1,7 +1,7 @@
 param(
     [string[]]$ProcessNames = @(
         'obs64', 'obs',
-        'MedalClient',
+        'MedalClient', 'MedalEncoder',
         'Streamlabs', 'StreamlabsOBS',
         'XboxGameBar','GameBar','GameBarFTService',
         'NVIDIA Share', 'nvspcap64', 'nvcontainer',
