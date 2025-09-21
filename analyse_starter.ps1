@@ -151,7 +151,7 @@ function Start-AppIfAvailable {
   param([Parameter(Mandatory=$true)][string]$ExecutableName)
 
   if (Is-ProcessRunning -ExecutableName $ExecutableName) {
-    Write-Host "[SKIP] Already running: $ExecutableName"
+    Write-Host "[SKIP] Already running: $ExecutableName" -ForegroundColor Yellow
     return $true
   }
 
@@ -164,7 +164,7 @@ function Start-AppIfAvailable {
       if ($launcherPath -and (Test-Path -LiteralPath $launcherPath)) {
         try {
           Start-Process -FilePath $launcherPath -ArgumentList $launcherArgs | Out-Null
-          Write-Host "[ OK ] Launched (special): $ExecutableName via $launcherPath $launcherArgs"
+          Write-Host "[ OK ] Launched (special): $ExecutableName via $launcherPath $launcherArgs" -ForegroundColor Green
           return $true
         } catch { }
       }
@@ -176,7 +176,7 @@ function Start-AppIfAvailable {
   if ($path) {
     try {
       Start-Process -FilePath $path | Out-Null
-      Write-Host "[ OK ] Launched: $ExecutableName ($path)"
+      Write-Host "[ OK ] Launched: $ExecutableName ($path)" -ForegroundColor Green
       return $true
     } catch { }
   }
@@ -184,10 +184,10 @@ function Start-AppIfAvailable {
   # 2) Try by name (PATH/App Paths resolution might still succeed)
   try {
     Start-Process -FilePath $ExecutableName -ErrorAction Stop | Out-Null
-    Write-Host "[ OK ] Launched by name: $ExecutableName"
+    Write-Host "[ OK ] Launched by name: $ExecutableName" -ForegroundColor Green
     return $true
   } catch {
-    Write-Host "[FAIL] Not found or couldn't start: $ExecutableName"
+    Write-Host "[FAIL] Not found or couldn't start: $ExecutableName" -ForegroundColor Red
     return $false
   }
 }
