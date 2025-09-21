@@ -25,8 +25,8 @@ $browserQueries = @(
 
 $discordQueries = @("Discord.exe","DiscordPTB.exe","DiscordCanary.exe")
 
-# For products whose on-disk EXE name commonly differs from the query name,
-# try these additional, known-good candidates as fallbacks.
+# For products whose on-disk EXE name differs from the query name, try these additional candidates.
+# Wildcards are supported and will resolve to the newest file by LastWriteTime.
 $extraCandidates = @{
   "opera.exe"          = @("$env:ProgramFiles\Opera\launcher.exe", "$env:ProgramFiles(x86)\Opera\launcher.exe")
   "operagx.exe"        = @("$env:ProgramFiles\Opera GX\launcher.exe", "$env:ProgramFiles(x86)\Opera GX\launcher.exe")
@@ -38,11 +38,10 @@ $extraCandidates = @{
   "safari.exe"         = @("$env:ProgramFiles\Safari\Safari.exe", "$env:ProgramFiles(x86)\Safari\Safari.exe")
   "tor.exe"            = @("$env:LocalAppData\Tor Browser\Browser\firefox.exe", "$env:ProgramFiles\Tor Browser\Browser\firefox.exe", "$env:ProgramFiles(x86)\Tor Browser\Browser\firefox.exe")
   "chromium.exe"       = @("$env:ProgramFiles\Chromium\Application\chrome.exe", "$env:ProgramFiles(x86)\Chromium\Application\chrome.exe")
-  # Mullvad Browser common locations (include both direct EXE and Firefox-based launcher)
   "mullvadbrowser.exe" = @(
       "$env:LocalAppData\Mullvad\MullvadBrowser\Release\mullvadbrowser.exe",
-      "$env:LocalAppData\Mullvad Browser\mullvadbrowser.exe",
       "$env:LocalAppData\MullvadBrowser\mullvadbrowser.exe",
+      "$env:LocalAppData\Mullvad Browser\mullvadbrowser.exe",
       "$env:LocalAppData\Mullvad Browser\Browser\firefox.exe",
       "$env:LocalAppData\MullvadBrowser\Browser\firefox.exe",
       "$env:ProgramFiles\Mullvad Browser\mullvadbrowser.exe",
@@ -50,14 +49,46 @@ $extraCandidates = @{
       "$env:ProgramFiles\Mullvad Browser\Browser\firefox.exe",
       "$env:ProgramFiles(x86)\Mullvad Browser\Browser\firefox.exe"
   )
+  # Discord variants often use Squirrel; include direct exe in versioned folders
+  "Discord.exe"        = @("$env:LocalAppData\Discord\Discord.exe", "$env:LocalAppData\Discord\app-*\Discord.exe")
+  "DiscordPTB.exe"     = @("$env:LocalAppData\DiscordPTB\DiscordPTB.exe", "$env:LocalAppData\DiscordPTB\app-*\DiscordPTB.exe")
+  "DiscordCanary.exe"  = @("$env:LocalAppData\DiscordCanary\DiscordCanary.exe", "$env:LocalAppData\DiscordCanary\app-*\DiscordCanary.exe")
+}
+
+# Some apps require launching via a helper (Squirrel Update.exe).
+# Each entry is "path|args". The first existing path wins.
+$specialLaunchers = @{
+  "Discord.exe"       = @(
+      "$env:LocalAppData\Discord\Update.exe|--processStart `"Discord.exe`"",
+      "$env:ProgramFiles\Discord\Update.exe|--processStart `"Discord.exe`"",
+      "$env:ProgramFiles(x86)\Discord\Update.exe|--processStart `"Discord.exe`""
+  )
+  "DiscordPTB.exe"    = @(
+      "$env:LocalAppData\DiscordPTB\Update.exe|--processStart `"DiscordPTB.exe`""
+  )
+  "DiscordCanary.exe" = @(
+      "$env:LocalAppData\DiscordCanary\Update.exe|--processStart `"DiscordCanary.exe`""
+  )
 }
 
 # -------------------- Helpers --------------------
 
+function Expand-CandidatePath {
+  param([Parameter(Mandatory=$true)][string]$PathSpec)
+  $expanded = [Environment]::ExpandEnvironmentVariables($PathSpec)
+  if ($expanded -match '[\*\?]') {
+    $items = Get-ChildItem -Path $expanded -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+    if ($items -and $items[0].FullName) { return $items[0].FullName }
+  } else {
+    if (Test-Path -LiteralPath $expanded) {
+      return (Resolve-Path -LiteralPath $expanded).Path
+    }
+  }
+  return $null
+}
+
 function Get-AppPathFromRegistry {
-  param(
-    [Parameter(Mandatory=$true)][string]$ExecutableName
-  )
+  param([Parameter(Mandatory=$true)][string]$ExecutableName)
   $regKeys = @(
     "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\$ExecutableName",
     "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\$ExecutableName",
@@ -67,66 +98,44 @@ function Get-AppPathFromRegistry {
     if (Test-Path -LiteralPath $key) {
       try {
         $item = Get-Item -LiteralPath $key -ErrorAction Stop
-        # Default value is the full executable path
         $defaultPath = $item.GetValue('')
-        if ($defaultPath -and (Test-Path -LiteralPath $defaultPath)) {
-          return $defaultPath
-        }
-        # Some entries store just a folder under "Path"
+        if ($defaultPath -and (Test-Path -LiteralPath $defaultPath)) { return $defaultPath }
         $folderPath = $item.GetValue('Path')
         if ($folderPath) {
           $candidate = Join-Path $folderPath $ExecutableName
-          if (Test-Path -LiteralPath $candidate) {
-            return $candidate
-          }
+          if (Test-Path -LiteralPath $candidate) { return $candidate }
         }
-      } catch {
-        # ignore and continue
-      }
+      } catch { }
     }
   }
   return $null
 }
 
 function Resolve-AppPath {
-  param(
-    [Parameter(Mandatory=$true)][string]$ExecutableName
-  )
+  param([Parameter(Mandatory=$true)][string]$ExecutableName)
 
   # 1) Try PATH / registered app paths (Get-Command consults both)
   $cmd = Get-Command -Name $ExecutableName -ErrorAction SilentlyContinue
-  if ($cmd -and $cmd.Source -and (Test-Path -LiteralPath $cmd.Source)) {
-    return $cmd.Source
-  }
+  if ($cmd -and $cmd.Source -and (Test-Path -LiteralPath $cmd.Source)) { return $cmd.Source }
 
   # 2) Try App Paths registry keys directly
   $regPath = Get-AppPathFromRegistry -ExecutableName $ExecutableName
-  if ($regPath) {
-    return $regPath
-  }
+  if ($regPath) { return $regPath }
 
   # 3) Try known alternate paths for this query (if any)
   if ($extraCandidates.ContainsKey($ExecutableName)) {
     foreach ($cand in $extraCandidates[$ExecutableName]) {
-      if ($cand -and (Test-Path -LiteralPath $cand)) {
-        return $cand
-      }
+      $resolved = Expand-CandidatePath -PathSpec $cand
+      if ($resolved) { return $resolved }
     }
   }
 
-  # 4) Last resort: attempt common install roots (non-recursive quick check of typical locations)
-  $quickFolders = @(
-    "$env:ProgramFiles",
-    "$env:ProgramFiles(x86)",
-    "$env:LocalAppData",
-    "$env:AppData"
-  ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
-
+  # 4) Last resort: attempt common install roots (quick direct check)
+  $quickFolders = @("$env:ProgramFiles","$env:ProgramFiles(x86)","$env:LocalAppData","$env:AppData") |
+                  Where-Object { $_ -and (Test-Path -LiteralPath $_) }
   foreach ($root in $quickFolders) {
     $direct = Join-Path $root $ExecutableName
-    if (Test-Path -LiteralPath $direct) {
-      return $direct
-    }
+    if (Test-Path -LiteralPath $direct) { return $direct }
   }
 
   return $null
@@ -135,37 +144,48 @@ function Resolve-AppPath {
 function Is-ProcessRunning {
   param([Parameter(Mandatory=$true)][string]$ExecutableName)
   $procName = [System.IO.Path]::GetFileNameWithoutExtension($ExecutableName)
-  try {
-    $null = Get-Process -Name $procName -ErrorAction Stop
-    return $true
-  } catch {
-    return $false
-  }
+  try { $null = Get-Process -Name $procName -ErrorAction Stop; return $true } catch { return $false }
 }
 
 function Start-AppIfAvailable {
-  param(
-    [Parameter(Mandatory=$true)][string]$ExecutableName
-  )
+  param([Parameter(Mandatory=$true)][string]$ExecutableName)
 
   if (Is-ProcessRunning -ExecutableName $ExecutableName) {
     Write-Host "[SKIP] Already running: $ExecutableName"
     return $true
   }
 
-  $path = Resolve-AppPath -ExecutableName $ExecutableName
+  # 0) Special launchers (e.g., Discord via Update.exe)
+  if ($specialLaunchers.ContainsKey($ExecutableName)) {
+    foreach ($entry in $specialLaunchers[$ExecutableName]) {
+      $parts = $entry -split '\|', 2
+      $launcherPath = [Environment]::ExpandEnvironmentVariables($parts[0])
+      $launcherArgs = if ($parts.Count -gt 1) { $parts[1] } else { $null }
+      if ($launcherPath -and (Test-Path -LiteralPath $launcherPath)) {
+        try {
+          Start-Process -FilePath $launcherPath -ArgumentList $launcherArgs | Out-Null
+          Write-Host "[ OK ] Launched (special): $ExecutableName via $launcherPath $launcherArgs"
+          return $true
+        } catch { }
+      }
+    }
+  }
 
-  try {
-    if ($path) {
+  # 1) Direct path resolution
+  $path = Resolve-AppPath -ExecutableName $ExecutableName
+  if ($path) {
+    try {
       Start-Process -FilePath $path | Out-Null
       Write-Host "[ OK ] Launched: $ExecutableName ($path)"
       return $true
-    } else {
-      # Try by name (PATH/App Paths resolution might still succeed)
-      Start-Process -FilePath $ExecutableName -ErrorAction Stop | Out-Null
-      Write-Host "[ OK ] Launched by name: $ExecutableName"
-      return $true
-    }
+    } catch { }
+  }
+
+  # 2) Try by name (PATH/App Paths resolution might still succeed)
+  try {
+    Start-Process -FilePath $ExecutableName -ErrorAction Stop | Out-Null
+    Write-Host "[ OK ] Launched by name: $ExecutableName"
+    return $true
   } catch {
     Write-Host "[FAIL] Not found or couldn't start: $ExecutableName"
     return $false
@@ -177,17 +197,13 @@ function Start-AppIfAvailable {
 Write-Host "=== Launching browsers ==="
 $browserLaunched = 0
 foreach ($exe in $browserQueries) {
-  if (Start-AppIfAvailable -ExecutableName $exe) {
-    $browserLaunched++
-  }
+  if (Start-AppIfAvailable -ExecutableName $exe) { $browserLaunched++ }
 }
 
 Write-Host "`n=== Launching Discord variants ==="
 $discordLaunched = 0
 foreach ($exe in $discordQueries) {
-  if (Start-AppIfAvailable -ExecutableName $exe) {
-    $discordLaunched++
-  }
+  if (Start-AppIfAvailable -ExecutableName $exe) { $discordLaunched++ }
 }
 
 Write-Host "`n=== Summary ==="
