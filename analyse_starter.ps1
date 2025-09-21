@@ -20,11 +20,13 @@ $browserQueries = @(
     "operagx.exe","safari.exe","tor.exe","avastbrowser.exe","vivaldi.exe",
     "maxthon.exe","iexplore.exe","chromium.exe","epicbrowser.exe","yandex.exe",
     "seamonkey.exe","palemoon.exe","waterfox.exe","lunascape.exe",
-    "comodo_dragon.exe","slimbrowser.exe"
+    "comodo_dragon.exe","slimbrowser.exe","mullvadbrowser.exe"
 )
 
 $discordQueries = @("Discord.exe","DiscordPTB.exe","DiscordCanary.exe")
 
+# For products whose on-disk EXE name commonly differs from the query name,
+# try these additional, known-good candidates as fallbacks.
 $extraCandidates = @{
   "opera.exe"          = @("$env:ProgramFiles\Opera\launcher.exe", "$env:ProgramFiles(x86)\Opera\launcher.exe")
   "operagx.exe"        = @("$env:ProgramFiles\Opera GX\launcher.exe", "$env:ProgramFiles(x86)\Opera GX\launcher.exe")
@@ -36,8 +38,21 @@ $extraCandidates = @{
   "safari.exe"         = @("$env:ProgramFiles\Safari\Safari.exe", "$env:ProgramFiles(x86)\Safari\Safari.exe")
   "tor.exe"            = @("$env:LocalAppData\Tor Browser\Browser\firefox.exe", "$env:ProgramFiles\Tor Browser\Browser\firefox.exe", "$env:ProgramFiles(x86)\Tor Browser\Browser\firefox.exe")
   "chromium.exe"       = @("$env:ProgramFiles\Chromium\Application\chrome.exe", "$env:ProgramFiles(x86)\Chromium\Application\chrome.exe")
-  "mullvadbrowser.exe" = @("$env:LocalAppData\Mullvad\MullvadBrowser\Release")
+  # Mullvad Browser common locations (include both direct EXE and Firefox-based launcher)
+  "mullvadbrowser.exe" = @(
+      "$env:LocalAppData\Mullvad\MullvadBrowser\Release\mullvadbrowser.exe",
+      "$env:LocalAppData\Mullvad Browser\mullvadbrowser.exe",
+      "$env:LocalAppData\MullvadBrowser\mullvadbrowser.exe",
+      "$env:LocalAppData\Mullvad Browser\Browser\firefox.exe",
+      "$env:LocalAppData\MullvadBrowser\Browser\firefox.exe",
+      "$env:ProgramFiles\Mullvad Browser\mullvadbrowser.exe",
+      "$env:ProgramFiles(x86)\Mullvad Browser\mullvadbrowser.exe",
+      "$env:ProgramFiles\Mullvad Browser\Browser\firefox.exe",
+      "$env:ProgramFiles(x86)\Mullvad Browser\Browser\firefox.exe"
+  )
 }
+
+# -------------------- Helpers --------------------
 
 function Get-AppPathFromRegistry {
   param(
@@ -52,10 +67,12 @@ function Get-AppPathFromRegistry {
     if (Test-Path -LiteralPath $key) {
       try {
         $item = Get-Item -LiteralPath $key -ErrorAction Stop
+        # Default value is the full executable path
         $defaultPath = $item.GetValue('')
         if ($defaultPath -and (Test-Path -LiteralPath $defaultPath)) {
           return $defaultPath
         }
+        # Some entries store just a folder under "Path"
         $folderPath = $item.GetValue('Path')
         if ($folderPath) {
           $candidate = Join-Path $folderPath $ExecutableName
@@ -63,7 +80,9 @@ function Get-AppPathFromRegistry {
             return $candidate
           }
         }
-      } catch { }
+      } catch {
+        # ignore and continue
+      }
     }
   }
   return $null
@@ -74,14 +93,19 @@ function Resolve-AppPath {
     [Parameter(Mandatory=$true)][string]$ExecutableName
   )
 
+  # 1) Try PATH / registered app paths (Get-Command consults both)
   $cmd = Get-Command -Name $ExecutableName -ErrorAction SilentlyContinue
   if ($cmd -and $cmd.Source -and (Test-Path -LiteralPath $cmd.Source)) {
     return $cmd.Source
   }
 
+  # 2) Try App Paths registry keys directly
   $regPath = Get-AppPathFromRegistry -ExecutableName $ExecutableName
-  if ($regPath) { return $regPath }
+  if ($regPath) {
+    return $regPath
+  }
 
+  # 3) Try known alternate paths for this query (if any)
   if ($extraCandidates.ContainsKey($ExecutableName)) {
     foreach ($cand in $extraCandidates[$ExecutableName]) {
       if ($cand -and (Test-Path -LiteralPath $cand)) {
@@ -90,6 +114,7 @@ function Resolve-AppPath {
     }
   }
 
+  # 4) Last resort: attempt common install roots (non-recursive quick check of typical locations)
   $quickFolders = @(
     "$env:ProgramFiles",
     "$env:ProgramFiles(x86)",
@@ -99,7 +124,9 @@ function Resolve-AppPath {
 
   foreach ($root in $quickFolders) {
     $direct = Join-Path $root $ExecutableName
-    if (Test-Path -LiteralPath $direct) { return $direct }
+    if (Test-Path -LiteralPath $direct) {
+      return $direct
+    }
   }
 
   return $null
@@ -109,7 +136,7 @@ function Is-ProcessRunning {
   param([Parameter(Mandatory=$true)][string]$ExecutableName)
   $procName = [System.IO.Path]::GetFileNameWithoutExtension($ExecutableName)
   try {
-    $p = Get-Process -Name $procName -ErrorAction Stop
+    $null = Get-Process -Name $procName -ErrorAction Stop
     return $true
   } catch {
     return $false
@@ -120,18 +147,21 @@ function Start-AppIfAvailable {
   param(
     [Parameter(Mandatory=$true)][string]$ExecutableName
   )
+
   if (Is-ProcessRunning -ExecutableName $ExecutableName) {
     Write-Host "[SKIP] Already running: $ExecutableName"
     return $true
   }
 
   $path = Resolve-AppPath -ExecutableName $ExecutableName
+
   try {
     if ($path) {
       Start-Process -FilePath $path | Out-Null
       Write-Host "[ OK ] Launched: $ExecutableName ($path)"
       return $true
-    } else {d)
+    } else {
+      # Try by name (PATH/App Paths resolution might still succeed)
       Start-Process -FilePath $ExecutableName -ErrorAction Stop | Out-Null
       Write-Host "[ OK ] Launched by name: $ExecutableName"
       return $true
@@ -142,16 +172,22 @@ function Start-AppIfAvailable {
   }
 }
 
+# -------------------- Main --------------------
+
 Write-Host "=== Launching browsers ==="
 $browserLaunched = 0
 foreach ($exe in $browserQueries) {
-  if (Start-AppIfAvailable -ExecutableName $exe) { $browserLaunched++ }
+  if (Start-AppIfAvailable -ExecutableName $exe) {
+    $browserLaunched++
+  }
 }
 
 Write-Host "`n=== Launching Discord variants ==="
 $discordLaunched = 0
 foreach ($exe in $discordQueries) {
-  if (Start-AppIfAvailable -ExecutableName $exe) { $discordLaunched++ }
+  if (Start-AppIfAvailable -ExecutableName $exe) {
+    $discordLaunched++
+  }
 }
 
 Write-Host "`n=== Summary ==="
