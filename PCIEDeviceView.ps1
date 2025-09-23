@@ -1,3 +1,4 @@
+$host.ui.RawUI.WindowTitle = "PCIE Device Check - Made by flomkk"
 Clear-Host
 Write-Host ""
 Write-Host -ForegroundColor Magenta @"
@@ -51,3 +52,4 @@ Write-Host "   [!] Done" -ForegroundColor Green
 $results | Out-GridView -Title "PCI Devices with Vendor, Device Info, and Location"
 
 Read-Host -Prompt "`n`n   [>] Press Enter to exit"
+
