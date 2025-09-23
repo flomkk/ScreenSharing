@@ -11,7 +11,7 @@ Write-Host -ForegroundColor Magenta @"
    ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝      ╚═════╝╚═╝   ╚═╝      ╚═╝
 "@
 
-Write-Host -ForegroundColor White "        Made by flomkk - " -NoNewLine
+Write-Host -ForegroundColor White "                    Made by flomkk - " -NoNewLine
 Write-Host -ForegroundColor White "discord.gg/narcocity"
 Write-Host ""
 
