@@ -25,13 +25,13 @@ if (-not (Test-Admin)) {
 }
 
 $options = @(
-    @{ Id = 1; Name = "ConsoleHost History Viewer"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/CHHViewer.ps1" }
-    @{ Id = 2; Name = "Check Screen Recording"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/CheckScreenRecording.ps1" }
-    @{ Id = 3; Name = "PCIE Device View"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/PCIEDeviceView.ps1" }
-    @{ Id = 4; Name = "Windows Defender Events"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/WinDefEvt.ps1" }
-    @{ Id = 5; Name = "Windows Serials Check"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/WinSerialsCheck.ps1" }
-    @{ Id = 6; Name = "Analyse Starter"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/analyse_starter.ps1" }
-    @{ Id = 7; Name = "Clean FiveM Cache"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/clean_fivem_cache.ps1" }
+    [PSCustomObject]@{ Id = 1; Name = "CHH Viewer (main)"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/CHHViewer.ps1" }
+    [PSCustomObject]@{ Id = 2; Name = "Check Screen Recording"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/CheckScreenRecording.ps1" }
+    [PSCustomObject]@{ Id = 3; Name = "PCIE Device View"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/PCIEDeviceView.ps1" }
+    [PSCustomObject]@{ Id = 4; Name = "Windows Defender Events (WinDefEvt)"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/WinDefEvt.ps1" }
+    [PSCustomObject]@{ Id = 5; Name = "Windows Serials Check (WinSerialsCheck)"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/WinSerialsCheck.ps1" }
+    [PSCustomObject]@{ Id = 6; Name = "Analyse Starter (analyse_starter)"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/analyse_starter.ps1" }
+    [PSCustomObject]@{ Id = 7; Name = "Clean FiveM Cache (clean_fivem_cache)"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/clean_fivem_cache.ps1" }
 )
 
 function Show-Menu {
@@ -45,12 +45,13 @@ function Show-Menu {
    ██║ ╚████║██║  ██║██║  ██║╚██████╗╚██████╔╝    ╚██████╗██║   ██║      ██║   
    ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝      ╚═════╝╚═╝   ╚═╝      ╚═╝   
 "@
-    Write-Host -ForegroundColor White "                    Made by flomkk - " -NoNewLine
-    Write-Host -ForegroundColor White "discord.gg/narcocity"
+Write-Host -ForegroundColor White "                    Made by flomkk - " -NoNewLine
+Write-Host -ForegroundColor White "discord.gg/narcocity"
     Write-Host ""
     foreach ($opt in $options) {
         Write-Host (" [{0}] {1}" -f $opt.Id, $opt.Name)
     }
+    Write-Host ""
     # Write-Host " [A] Run ALL scripts"
     # Write-Host " [M] Multiple selection (e.g., 1,3,5)"
     Write-Host " [Q] Quit"
@@ -98,32 +99,41 @@ function Run-RemoteScript {
 function Parse-And-RunSelection {
     param([string]$input)
 
-    $inputTrim = $input.Trim().ToLowerInvariant()
+    if ($null -eq $input) { return $null }
 
-    if ($inputTrim -in @('q','quit','exit')) {
+    $inputTrim = $input.Trim()
+
+    if ($inputTrim -eq '') { return $null }
+
+    $lower = $inputTrim.ToLowerInvariant()
+
+    if ($lower -in @('q','quit','exit')) {
         return 'quit'
     }
 
-    # if ($inputTrim -in @('a','all')) {
+    # if ($lower -in @('a','all')) {
     #     foreach ($opt in $options) {
     #         Run-RemoteScript -Url $opt.Url -Label $opt.Name
     #     }
     #     return $null
     # }
 
-    # if ($inputTrim -in @('m','multi','multiple')) {
+    # if ($lower -in @('m','multi','multiple')) {
     #     $multi = Read-Host "Enter comma separated option numbers (example: 1,3,5)"
+    #     if ($null -eq $multi) { return $null }
     #     $inputTrim = $multi.Trim()
     # }
 
     $tokens = $inputTrim -split '[,\s]+' | Where-Object { $_ -ne '' }
 
-    $ids = @()
+    $ids = [System.Collections.ArrayList]::New()
+
     foreach ($t in $tokens) {
         if ($t -match '^\d+$') {
             $n = [int]$t
-            if ($options.Id -contains $n) {
-                $ids += $n
+            $match = $options | Where-Object { $_.Id -eq $n } | Select-Object -First 1
+            if ($null -ne $match) {
+                $ids.Add($n) | Out-Null
             } else {
                 Write-Host "Invalid option number: $n" -ForegroundColor Yellow
             }
@@ -138,9 +148,12 @@ function Parse-And-RunSelection {
         return $null
     }
 
-    $ids = $ids | Get-Unique
+    $uniqueIds = @()
+    foreach ($i in $ids) {
+        if ($uniqueIds -notcontains $i) { $uniqueIds += $i }
+    }
 
-    foreach ($id in $ids) {
+    foreach ($id in $uniqueIds) {
         $opt = $options | Where-Object { $_.Id -eq $id } | Select-Object -First 1
         if ($null -ne $opt) {
             Run-RemoteScript -Url $opt.Url -Label $opt.Name
