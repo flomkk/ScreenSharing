@@ -13,7 +13,7 @@ Write-Host -ForegroundColor Magenta @"
    ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝      ╚═════╝╚═╝   ╚═╝      ╚═╝   
 "@
 
-Write-Host -ForegroundColor White "        Made by flomkk - " -NoNewLine
+Write-Host -ForegroundColor White "                    Made by flomkk - " -NoNewLine
 Write-Host -ForegroundColor White "discord.gg/narcocity"
 Write-Host ""
 
@@ -51,3 +51,4 @@ try {
 } catch {
     Write-Host -ForegroundColor Red "Fehler beim Lesen der ISE-Datei: $_"
 }
+
