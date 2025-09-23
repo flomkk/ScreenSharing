@@ -1,3 +1,4 @@
+$host.ui.RawUI.WindowTitle = "Windows Defender Event Viewer - Made by flomkk"
 Clear-Host
 Write-Host ""
 Write-Host -ForegroundColor Magenta @"
@@ -104,4 +105,5 @@ Get-DefenderEvents
 
 Write-Host "`nPress any Key to Exit..." -ForegroundColor Yellow
 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+
 
