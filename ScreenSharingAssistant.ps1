@@ -25,13 +25,13 @@ if (-not (Test-Admin)) {
 }
 
 $options = @(
-    [PSCustomObject]@{ Id = 1; Name = "CHH Viewer (main)"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/CHHViewer.ps1" }
+    [PSCustomObject]@{ Id = 1; Name = "CHH Viewer"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/CHHViewer.ps1" }
     [PSCustomObject]@{ Id = 2; Name = "Check Screen Recording"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/CheckScreenRecording.ps1" }
     [PSCustomObject]@{ Id = 3; Name = "PCIE Device View"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/PCIEDeviceView.ps1" }
-    [PSCustomObject]@{ Id = 4; Name = "Windows Defender Events (WinDefEvt)"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/WinDefEvt.ps1" }
-    [PSCustomObject]@{ Id = 5; Name = "Windows Serials Check (WinSerialsCheck)"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/WinSerialsCheck.ps1" }
-    [PSCustomObject]@{ Id = 6; Name = "Analyse Starter (analyse_starter)"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/analyse_starter.ps1" }
-    [PSCustomObject]@{ Id = 7; Name = "Clean FiveM Cache (clean_fivem_cache)"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/clean_fivem_cache.ps1" }
+    [PSCustomObject]@{ Id = 4; Name = "Windows Defender Events"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/WinDefEvt.ps1" }
+    [PSCustomObject]@{ Id = 5; Name = "Windows Serials Check"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/WinSerialsCheck.ps1" }
+    [PSCustomObject]@{ Id = 6; Name = "Analyse Starter"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/analyse_starter.ps1" }
+    [PSCustomObject]@{ Id = 7; Name = "Clean FiveM Cache"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/clean_fivem_cache.ps1" }
 )
 
 function Show-Menu {
