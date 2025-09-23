@@ -1,14 +1,17 @@
 Clear-Host
-Write-Host " 
-
+Write-Host ""
+Write-Host -ForegroundColor Magenta @"
    ███╗   ██╗ █████╗ ██████╗  ██████╗ ██████╗      ██████╗██╗████████╗██╗   ██╗
    ████╗  ██║██╔══██╗██╔══██╗██╔════╝██╔═══██╗    ██╔════╝██║╚══██╔══╝╚██╗ ██╔╝
-   ██╔██╗ ██║███████║██████╔╝██║     ██║   ██║    ██║     ██║   ██║    ╚████╔╝ 
-   ██║╚██╗██║██╔══██║██╔══██╗██║     ██║   ██║    ██║     ██║   ██║     ╚██╔╝  
-   ██║ ╚████║██║  ██║██║  ██║╚██████╗╚██████╔╝    ╚██████╗██║   ██║      ██║   
-   ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝      ╚═════╝╚═╝   ╚═╝      ╚═╝    
+   ██╔██╗ ██║███████║██████╔╝██║     ██║   ██║    ██║     ██║   ██║    ╚████╔╝
+   ██║╚██╗██║██╔══██║██╔══██╗██║     ██║   ██║    ██║     ██║   ██║     ╚██╔╝
+   ██║ ╚████║██║  ██║██║  ██║╚██████╗╚██████╔╝    ╚██████╗██║   ██║      ██║
+   ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝      ╚═════╝╚═╝   ╚═╝      ╚═╝
+"@
 
-" -ForegroundColor Red
+Write-Host -ForegroundColor White "                    Made by flomkk - " -NoNewLine
+Write-Host -ForegroundColor White "discord.gg/narcocity"
+Write-Host ""
 
 Write-Host "   [-] Checking for devices..." -ForegroundColor Yellow
 $drivers = Get-CimInstance Win32_PnPSignedDriver | Select-Object DeviceID, DriverVersion
@@ -46,4 +49,5 @@ $results = Get-CimInstance Win32_PnPEntity |
 	
 Write-Host "   [!] Done" -ForegroundColor Green 
 $results | Out-GridView -Title "PCI Devices with Vendor, Device Info, and Location"
+
 Read-Host -Prompt "`n`n   [>] Press Enter to exit"
