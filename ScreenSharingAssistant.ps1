@@ -37,7 +37,16 @@ $options = @(
 function Show-Menu {
     Clear-Host
     Write-Host ""
-    Write-Host -ForegroundColor Magenta "Screen Sharing Assistant - Options menu"
+    Write-Host -ForegroundColor Magenta @"
+   ███╗   ██╗ █████╗ ██████╗  ██████╗ ██████╗      ██████╗██╗████████╗██╗   ██╗
+   ████╗  ██║██╔══██╗██╔══██╗██╔════╝██╔═══██╗    ██╔════╝██║╚══██╔══╝╚██╗ ██╔╝
+   ██╔██╗ ██║███████║██████╔╝██║     ██║   ██║    ██║     ██║   ██║    ╚████╔╝ 
+   ██║╚██╗██║██╔══██║██╔══██╗██║     ██║   ██║    ██║     ██║   ██║     ╚██╔╝  
+   ██║ ╚████║██║  ██║██║  ██║╚██████╗╚██████╔╝    ╚██████╗██║   ██║      ██║   
+   ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝      ╚═════╝╚═╝   ╚═╝      ╚═╝   
+"@
+    Write-Host -ForegroundColor White "                    Made by flomkk - " -NoNewLine
+    Write-Host -ForegroundColor White "discord.gg/narcocity"
     Write-Host ""
     foreach ($opt in $options) {
         Write-Host (" [{0}] {1}" -f $opt.Id, $opt.Name)
