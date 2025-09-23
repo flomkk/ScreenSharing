@@ -25,13 +25,13 @@ if (-not (Test-Admin)) {
 }
 
 $options = @(
-    [PSCustomObject]@{ Id = 1; Name = "CHH Viewer"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/CHHViewer.ps1" }
-    [PSCustomObject]@{ Id = 2; Name = "Check Screen Recording"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/CheckScreenRecording.ps1" }
-    [PSCustomObject]@{ Id = 3; Name = "PCIE Device View"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/PCIEDeviceView.ps1" }
-    [PSCustomObject]@{ Id = 4; Name = "Windows Defender Events"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/WinDefEvt.ps1" }
-    [PSCustomObject]@{ Id = 5; Name = "Windows Serials Check"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/WinSerialsCheck.ps1" }
-    [PSCustomObject]@{ Id = 6; Name = "Analyse Starter"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/analyse_starter.ps1" }
-    [PSCustomObject]@{ Id = 7; Name = "Clean FiveM Cache"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/clean_fivem_cache.ps1" }
+    [PSCustomObject]@{ Id = 1; Name = "CHH Viewer (main)"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/main/CHHViewer.ps1" }
+    [PSCustomObject]@{ Id = 2; Name = "Check Screen Recording"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/main/CheckScreenRecording.ps1" }
+    [PSCustomObject]@{ Id = 3; Name = "PCIE Device View"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/main/PCIEDeviceView.ps1" }
+    [PSCustomObject]@{ Id = 4; Name = "Windows Defender Events (WinDefEvt)"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/main/WinDefEvt.ps1" }
+    [PSCustomObject]@{ Id = 5; Name = "Windows Serials Check (WinSerialsCheck)"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/main/WinSerialsCheck.ps1" }
+    [PSCustomObject]@{ Id = 6; Name = "Analyse Starter (analyse_starter)"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/main/analyse_starter.ps1" }
+    [PSCustomObject]@{ Id = 7; Name = "Clean FiveM Cache (clean_fivem_cache)"; Url = "https://raw.githubusercontent.com/flomkk/ScreenSharing/main/clean_fivem_cache.ps1" }
 )
 
 function Show-Menu {
@@ -52,8 +52,8 @@ Write-Host -ForegroundColor White "discord.gg/narcocity"
         Write-Host (" [{0}] {1}" -f $opt.Id, $opt.Name)
     }
     Write-Host ""
-    # Write-Host " [A] Run ALL scripts"
-    # Write-Host " [M] Multiple selection (e.g., 1,3,5)"
+    Write-Host " [A] Run ALL scripts"
+    Write-Host " [M] Multiple selection (e.g., 1,3,5)"
     Write-Host " [Q] Quit"
     Write-Host ""
 }
@@ -73,13 +73,18 @@ function Run-RemoteScript {
     }
 
     try {
+        # allow running downloaded script in this process
         Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 
-        $scriptText = Invoke-RestMethod -Uri $Url -UseBasicParsing
-        if (-not $scriptText) {
-            throw "Downloaded script is empty or failed."
+        # download raw script text reliably
+        $resp = Invoke-WebRequest -Uri $Url -UseBasicParsing -ErrorAction Stop
+        $scriptText = $resp.Content
+
+        if ([string]::IsNullOrWhiteSpace($scriptText)) {
+            throw "Downloaded content is empty."
         }
 
+        # execute the downloaded script in a separate scope
         & {
             Invoke-Expression $scriptText
         }
@@ -87,7 +92,8 @@ function Run-RemoteScript {
         Write-Host "-> Finished: $Label" -ForegroundColor Green
     }
     catch {
-        Write-Host "ERROR running remote script ($Label): $_" -ForegroundColor Red
+        Write-Host "ERROR running remote script ($Label): $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "URL tried: $Url" -ForegroundColor DarkYellow
     }
     finally {
         Write-Host ""
@@ -102,7 +108,6 @@ function Parse-And-RunSelection {
     if ($null -eq $input) { return $null }
 
     $inputTrim = $input.Trim()
-
     if ($inputTrim -eq '') { return $null }
 
     $lower = $inputTrim.ToLowerInvariant()
@@ -111,19 +116,20 @@ function Parse-And-RunSelection {
         return 'quit'
     }
 
-    # if ($lower -in @('a','all')) {
-    #     foreach ($opt in $options) {
-    #         Run-RemoteScript -Url $opt.Url -Label $opt.Name
-    #     }
-    #     return $null
-    # }
+    if ($lower -in @('a','all')) {
+        foreach ($opt in $options) {
+            Run-RemoteScript -Url $opt.Url -Label $opt.Name
+        }
+        return $null
+    }
 
-    # if ($lower -in @('m','multi','multiple')) {
-    #     $multi = Read-Host "Enter comma separated option numbers (example: 1,3,5)"
-    #     if ($null -eq $multi) { return $null }
-    #     $inputTrim = $multi.Trim()
-    # }
+    if ($lower -in @('m','multi','multiple')) {
+        $multi = Read-Host "Enter comma separated option numbers (example: 1,3,5)"
+        if ($null -eq $multi) { return $null }
+        $inputTrim = $multi.Trim()
+    }
 
+    # split on commas and/or whitespace; accept single numbers like "1" as well
     $tokens = $inputTrim -split '[,\s]+' | Where-Object { $_ -ne '' }
 
     $ids = [System.Collections.ArrayList]::New()
@@ -148,6 +154,7 @@ function Parse-And-RunSelection {
         return $null
     }
 
+    # remove duplicates while preserving order
     $uniqueIds = @()
     foreach ($i in $ids) {
         if ($uniqueIds -notcontains $i) { $uniqueIds += $i }
@@ -163,6 +170,7 @@ function Parse-And-RunSelection {
     return $null
 }
 
+# Main loop
 while ($true) {
     Show-Menu
     $selection = Read-Host "Choose an option (number, A for all, M for multiple, Q to quit)"
