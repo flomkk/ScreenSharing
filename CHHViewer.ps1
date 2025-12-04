@@ -1,5 +1,5 @@
-$inputFile1 = [System.IO.Path]::Combine($env:APPDATA, 'Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt')
-$inputFile2 = [System.IO.Path]::Combine($env:APPDATA, 'Microsoft\Windows\PowerShell\PSReadLine\Windows Powershell ISE Host_history.txt')
+$inputFile1 = [System.IO.Path]::Combine($env:APPDATA, 'Roaming\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt')
+$inputFile2 = [System.IO.Path]::Combine($env:APPDATA, 'Roaming\Microsoft\Windows\PowerShell\PSReadLine\Windows Powershell ISE Host_history.txt')
 
 $host.ui.RawUI.WindowTitle = "CHH Viewer - Made by flomkk"
 Clear-Host
@@ -51,4 +51,5 @@ try {
 } catch {
     Write-Host -ForegroundColor Red "Fehler beim Lesen der ISE-Datei: $_"
 }
+
 
