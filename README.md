@@ -1,69 +1,72 @@
-# 📺 FiveM, alt:V and RAGE:MP Screensharing Scripts
+<div align="center">
 
-[![PowerShell](https://img.shields.io/badge/PowerShell-5%2B-blue.svg)](https://learn.microsoft.com/en-us/powershell/)  
-A curated collection of **Windows PowerShell scripts** for **system analysis, monitoring, and utilities**.  
-These scripts provide lightweight solutions for inspecting hardware, analyzing logs, verifying configurations, and cleaning caches.
+# ScreenSharing
 
----
+**A collection of PowerShell scripts for FiveM server admins to run during screen sharing sessions.**  
+Covers everything from detecting screen recorders and inspecting hardware to reading Windows Defender logs and clearing FiveM cache.
 
-## 📑 Table of Contents
+[![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-5391FE?style=flat-square&logo=powershell&logoColor=white)](https://github.com/PowerShell/PowerShell)
+[![Platform](https://img.shields.io/badge/platform-Windows-0078D6?style=flat-square&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 
-- [📂 Repository Overview](#-repository-overview)
-- [⚙️ Requirements](#️-requirements)
-- [🚀 Installation](#-installation)
-- [▶️ Usage Examples](#️-usage-examples)
-- [🔒 Security Considerations](#-security-considerations)
-- [👤 Author](#-author)
+</div>
 
 ---
 
-## 📂 Repository Overview
+## About
 
-| Script                     | Description                                                                 |
-|-----------------------------|-----------------------------------------------------------------------------|
-| **CHHViewer.ps1**           | View or analyze CHH-related logs or datasets                               |
-| **CheckScreenRecording.ps1**| Detect whether screen recording is active or allowed                       |
-| **PCIEDeviceView.ps1**      | List and display PCIe device information                                   |
-| **WinDefEvt.ps1**           | Extract and analyze Windows Defender event logs                            |
-| **WinSerialsCheck.ps1**     | Retrieve system, BIOS, and hardware serial numbers                         |
-| **analyse_starter.ps1**     | Launcher for analysis-related scripts                                      |
-| **clean_fivem_cache.ps1**   | Clear cached data for FiveM (GTA V multiplayer/modding utility)            |
+This repo is a toolkit built around the `ScreenSharingAssistant.ps1` launcher, which lets you run any of the included scripts remotely without needing to download them manually. Scripts are fetched directly from GitHub at runtime, so they are always up to date.
 
-> ⚠️ *Descriptions are inferred from file names. Please check the script source for full details and supported parameters.*
+All scripts require administrator privileges.
 
 ---
 
-## ⚙️ Requirements
+## Scripts
 
-- **Operating System:** Windows 10 / Windows 11 / Windows Server  
-- **PowerShell:** Version 5.1 or later (PowerShell 7+ recommended)  
-- Some scripts require **Administrator privileges**  
+| Script | Description |
+|---|---|
+| `ScreenSharingAssistant.ps1` | Interactive menu launcher - run any script individually, in combination, or all at once |
+| `CheckScreenRecording.ps1` | Scans running processes for known screen recording software (OBS, Medal, ShadowPlay, Bandicam, Fraps, XSplit, and more) |
+| `CHHViewer.ps1` | Displays CHH-related data for analysis during a session |
+| `PCIEDeviceView.ps1` | Lists PCIe devices connected to the system |
+| `WinDefEvt.ps1` | Pulls and displays recent Windows Defender event log entries |
+| `WinSerialsCheck.ps1` | Retrieves system, BIOS, and hardware serial numbers |
+| `analyse_starter.ps1` | Starter script that kicks off a broader system analysis |
+| `clean_fivem_cache.ps1` | Clears FiveM cache directories |
 
 ---
 
-## ▶️ Usage Examples
+## Usage
 
-Run directly from command line:
+**Recommended - run the assistant launcher directly from PowerShell (no download needed):**
 
 ```powershell
-# Example: Run CheckScreenRecording.ps1
-endlocal & powershell Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass && powershell Invoke-Expression (Invoke-RestMethod https://raw.githubusercontent.com/flomkk/ScreenSharing/refs/heads/main/CheckScreenRecording.ps1)
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass; Invoke-Expression (Invoke-RestMethod https://raw.githubusercontent.com/flomkk/ScreenSharing/main/ScreenSharingAssistant.ps1)
 ```
-- Swap the `CheckScreenRecording.ps1` to your desired script name from my repository.
 
-> 💡 Check the `param(...)` block or comments inside each script for supported arguments.
+The assistant menu lets you:
+
+- Run a single script by number
+- Run multiple scripts at once (e.g. `1,3,5`)
+- Run all scripts with `A`
+
+**Alternatively, run any individual script the same way:**
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass; Invoke-Expression (Invoke-RestMethod https://raw.githubusercontent.com/flomkk/ScreenSharing/main/CheckScreenRecording.ps1)
+```
+
+Just swap `CheckScreenRecording.ps1` for whichever script you want.
 
 ---
 
-## 🔒 Security Considerations
+## Requirements
 
-- Scripts execute with the current user's privileges  
-- Always **review scripts before running**  
-- Be mindful of outputs that may expose sensitive data (e.g., serial numbers, event logs)  
+- Windows 10 / 11
+- PowerShell 5.1 or newer (included with Windows by default)
+- Administrator privileges (the assistant will warn and exit if not elevated)
 
 ---
 
-## 👤 Author
+## Contributing
 
-Maintained by **[flomkk](https://github.com/flomkk/)**  
-💬 For issues or suggestions, please open an [issue here](https://github.com/flomkk/ScreenSharing/issues).  
+Pull requests are welcome. If something is broken or you want a new script added, open an issue.
