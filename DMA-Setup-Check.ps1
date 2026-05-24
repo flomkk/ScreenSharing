@@ -22,7 +22,7 @@ function Write-Section {
     param([string]$Text)
     Write-Host ""
     Write-Host "   $Text" -ForegroundColor Cyan
-    Write-Host "   $("=" * 55)" -ForegroundColor DarkGray
+    Write-Host "   $("=" * 75)" -ForegroundColor DarkGray
 }
  
 function Write-Result {
@@ -282,9 +282,9 @@ if ($vendorHits -eq 0) {
 # ERGEBNIS
 # ===========================================================================
 Write-Host ""
-Write-Host "   $("=" * 55)" -ForegroundColor DarkGray
+Write-Host "   $("=" * 75)" -ForegroundColor DarkGray
 Write-Host "   ERGEBNIS" -ForegroundColor Cyan
-Write-Host "   $("=" * 55)" -ForegroundColor DarkGray
+Write-Host "   $("=" * 75)" -ForegroundColor DarkGray
 Write-Host ""
  
 if ($findings.Count -eq 0) {
