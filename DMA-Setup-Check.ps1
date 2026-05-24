@@ -194,13 +194,13 @@ $specSusp   = ($fsOverride -eq 3 -and $fsMask -eq 3)
 Write-Result "Spectre/Meltdown Schutz" $specSusp $(if ($specSusp) { "Deaktiviert (Override=3, Mask=3)" } else { "Standard" })
 if ($specSusp) { Add-Finding "Spectre/Meltdown Mitigationen manuell deaktiviert" }
 
-# NetworkThrottlingIndex - Fix: UInt32 statt Int32
-$mmKey  = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
-$ntiRaw = (Get-ItemProperty -Path $mmKey -ErrorAction SilentlyContinue).NetworkThrottlingIndex
-$ntiSusp = ($null -ne $ntiRaw -and [uint32]$ntiRaw -eq 0xFFFFFFFF)
-$ntiTxt  = if ($null -ne $ntiRaw) { "0x$([Convert]::ToString([int64][uint32]$ntiRaw, 16).ToUpper())" } else { "Standard" }
-Write-Result "NetworkThrottlingIndex" $ntiSusp $ntiTxt
-if ($ntiSusp) { Add-Finding "NetworkThrottlingIndex auf 0xFFFFFFFF gesetzt" }
+# # NetworkThrottlingIndex - Fix: UInt32 statt Int32
+# $mmKey  = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
+# $ntiRaw = (Get-ItemProperty -Path $mmKey -ErrorAction SilentlyContinue).NetworkThrottlingIndex
+# $ntiSusp = ($null -ne $ntiRaw -and [uint32]$ntiRaw -eq 0xFFFFFFFF)
+# $ntiTxt  = if ($null -ne $ntiRaw) { "0x$([Convert]::ToString([int64][uint32]$ntiRaw, 16).ToUpper())" } else { "Standard" }
+# Write-Result "NetworkThrottlingIndex" $ntiSusp $ntiTxt
+# if ($ntiSusp) { Add-Finding "NetworkThrottlingIndex auf 0xFFFFFFFF gesetzt" }
 
 # ===========================================================================
 # ERGEBNIS
@@ -219,14 +219,14 @@ if ($findings.Count -eq 0) {
     }
     Write-Host ""
     if ($findings.Count -ge 4) {
-        Write-Host "   BEWERTUNG: HOHES RISIKO" -ForegroundColor Red
-        Write-Host "   Mehrere Sicherheitsmechanismen wurden gezielt deaktiviert." -ForegroundColor DarkGray
+        # Write-Host "   BEWERTUNG: HOHES RISIKO" -ForegroundColor Red
+        Write-Host "   Mehrere Sicherheitsmechanismen wurden gezielt deaktiviert." -ForegroundColor Red
     } elseif ($findings.Count -ge 2) {
-        Write-Host "   BEWERTUNG: AUFFAELLIG" -ForegroundColor Yellow
-        Write-Host "   Einige Einstellungen weichen vom Windows-Standard ab." -ForegroundColor DarkGray
+        # Write-Host "   BEWERTUNG: AUFFAELLIG" -ForegroundColor Yellow
+        Write-Host "   Einige Einstellungen weichen vom Windows-Standard ab." -ForegroundColor Yellow
     } else {
-        Write-Host "   BEWERTUNG: LEICHT AUFFAELLIG" -ForegroundColor Yellow
-        Write-Host "   Einzelner Befund - kein eindeutiger Beweis." -ForegroundColor DarkGray
+        # Write-Host "   BEWERTUNG: LEICHT AUFFAELLIG" -ForegroundColor Yellow
+        Write-Host "   Einzelner Befund - kein eindeutiger Beweis." -ForegroundColor Yellow
     }
 }
 
