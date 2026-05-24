@@ -162,59 +162,64 @@ foreach ($dev in $pciAll) {
 # ===========================================================================
 Write-Section "FORENSIK CHECKS"
  
-# --- IOMMU / Kernel-DMA-Schutz (nur Registry, kein WMI, kein Fenster) ---
-$kdmaReg      = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceGuard" -ErrorAction SilentlyContinue
-$kdmaReg2     = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" -ErrorAction SilentlyContinue
+# Registry Quellen einmalig laden
+$dgReg1  = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceGuard" -ErrorAction SilentlyContinue
+$dgReg2  = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard"          -ErrorAction SilentlyContinue
+$dgWmi   = $null
+try { $dgWmi = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -ErrorAction Stop } catch { }
  
-# HypervisorEnforcedDmaProtection = 1 -> Kernel-DMA-Schutz aktiv
-# EnableVirtualizationBasedSecurity muss ebenfalls 1 sein damit DMA-Schutz greift
-$iommuEnabled = ($kdmaReg.HypervisorEnforcedDmaProtection -eq 1) -or
-                ($kdmaReg2.EnableVirtualizationBasedSecurity -eq 1 -and $kdmaReg.HypervisorEnforcedDmaProtection -eq 1)
+Write-Host ""
  
-Write-Result "IOMMU / Kernel-DMA-Schutz" (-not $iommuEnabled) `
-    $(if ($iommuEnabled) { "Aktiv" } else { "Deaktiviert" })
-if (-not $iommuEnabled) { Add-Finding "IOMMU / Kernel-DMA-Schutz deaktiviert" }
+# --- 1. IOMMU ---
+# HypervisorEnforcedDmaProtection = 1 bedeutet Hardware-IOMMU aktiv und genutzt
+$iommuVal     = $dgReg1.HypervisorEnforcedDmaProtection
+$iommuEnabled = ($iommuVal -eq 1)
+Write-Result "IOMMU" (-not $iommuEnabled) $(if ($iommuEnabled) { "Aktiv" } else { "Deaktiviert" })
+if (-not $iommuEnabled) { Add-Finding "IOMMU deaktiviert - Hardware-DMA-Schutz nicht aktiv" }
  
-# --- DeviceGuard Checks (WMI + Registry Fallback) ---
-$dgWmi = $null
-try {
-    $dgWmi = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -ErrorAction Stop
-} catch { }
- 
-# VBS
-$vbsStatus = $null
+# --- 2. Kernel-DMA-Schutz ---
+# Separater Check: SecurityServicesRunning Bit 0x10 via WMI, sonst Registry
+$kdmaAktiv = $false
 if ($dgWmi) {
-    $vbsStatus = $dgWmi.VirtualizationBasedSecurityStatus
+    $svcSum    = ($dgWmi.SecurityServicesRunning | Measure-Object -Sum).Sum
+    $kdmaAktiv = ([int]$svcSum -band 0x10) -ne 0
 } else {
-    # Registry Fallback
-    $vbsReg = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" -ErrorAction SilentlyContinue)
-    if ($vbsReg.EnableVirtualizationBasedSecurity -eq 1) { $vbsStatus = 2 } else { $vbsStatus = 0 }
+    # Fallback: wenn VBS + IOMMU aktiv, gilt Kernel-DMA-Schutz als aktiv
+    $kdmaAktiv = ($iommuEnabled -and $dgReg2.EnableVirtualizationBasedSecurity -eq 1)
+}
+Write-Result "Kernel-DMA-Schutz" (-not $kdmaAktiv) $(if ($kdmaAktiv) { "Aktiv" } else { "Deaktiviert" })
+if (-not $kdmaAktiv) { Add-Finding "Kernel-DMA-Schutz deaktiviert - DMA-Zugriff auf RAM moeglich" }
+ 
+# --- 3. VBS ---
+$vbsStatus = 0
+if ($dgWmi) {
+    $vbsStatus = [int]$dgWmi.VirtualizationBasedSecurityStatus
+} elseif ($dgReg2.EnableVirtualizationBasedSecurity -eq 1) {
+    $vbsStatus = 1
 }
 $vbsText = switch ($vbsStatus) { 0{"Deaktiviert"} 1{"Aktiviert, nicht laufend"} 2{"Aktiv"} default{"Unbekannt"} }
-Write-Result "VBS" ($vbsStatus -eq 0) $vbsText
-if ($vbsStatus -eq 0) { Add-Finding "VBS deaktiviert" }
+Write-Result "VBS (Virtualization Based Security)" ($vbsStatus -eq 0) $vbsText
+if ($vbsStatus -eq 0) { Add-Finding "VBS deaktiviert - Kernel-Speicher nicht isoliert" }
  
-# Credential Guard
-if ($dgWmi) {
-    # SecurityServicesRunning ist ein UInt32-Array - einzelne Werte summieren
-    $svcRunning = ($dgWmi.SecurityServicesRunning | Measure-Object -Sum).Sum
-    $cgRunning  = ($svcRunning -band 0x1) -ne 0
-    Write-Result "Credential Guard" (-not $cgRunning) $(if ($cgRunning) { "Aktiv" } else { "Deaktiviert" })
-    if (-not $cgRunning) { Add-Finding "Credential Guard deaktiviert" }
-} else {
-    $cgReg = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -ErrorAction SilentlyContinue).LsaCfgFlags
-    $cgAktiv = ($cgReg -eq 1 -or $cgReg -eq 2)
-    Write-Result "Credential Guard" (-not $cgAktiv) $(if ($cgAktiv) { "Aktiv" } else { "Deaktiviert" })
-    if (-not $cgAktiv) { Add-Finding "Credential Guard deaktiviert" }
-}
- 
-# HVCI
+# --- 4. Memory Integrity / HVCI ---
 $hvciKey = "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity"
 $hvciVal = (Get-ItemProperty -Path $hvciKey -ErrorAction SilentlyContinue).Enabled
 Write-Result "Memory Integrity (HVCI)" ($hvciVal -ne 1) $(if ($hvciVal -eq 1) { "Aktiv" } else { "Deaktiviert" })
-if ($hvciVal -ne 1) { Add-Finding "HVCI / Memory Integrity deaktiviert" }
+if ($hvciVal -ne 1) { Add-Finding "Memory Integrity (HVCI) deaktiviert" }
  
-# Secure Boot
+# --- 5. Credential Guard ---
+$cgAktiv = $false
+if ($dgWmi) {
+    $svcSum  = ($dgWmi.SecurityServicesRunning | Measure-Object -Sum).Sum
+    $cgAktiv = ([int]$svcSum -band 0x1) -ne 0
+} else {
+    $cgReg   = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -ErrorAction SilentlyContinue).LsaCfgFlags
+    $cgAktiv = ($cgReg -eq 1 -or $cgReg -eq 2)
+}
+Write-Result "Credential Guard" (-not $cgAktiv) $(if ($cgAktiv) { "Aktiv" } else { "Deaktiviert" })
+if (-not $cgAktiv) { Add-Finding "Credential Guard deaktiviert - LSASS-Speicher ungeschuetzt" }
+ 
+# --- 6. Secure Boot ---
 try {
     $sb = Confirm-SecureBootUEFI -ErrorAction Stop
     Write-Result "Secure Boot" (-not $sb) $(if ($sb) { "Aktiv" } else { "Deaktiviert" })
@@ -224,14 +229,15 @@ try {
     Add-Finding "Secure Boot nicht verfuegbar"
 }
  
-# Hypervisor
+# --- 7. Hypervisor Launch Type ---
 $bcdOut      = & bcdedit /enum | Out-String
 $hyperLaunch = if ($bcdOut -match "hypervisorlaunchtype\s+(\S+)") { $Matches[1] } else { "Off" }
 $hvSusp      = ($hyperLaunch -ieq "Off")
 $hvText      = if ($hyperLaunch -ieq "Off") { "Deaktiviert" } elseif ($hyperLaunch -ieq "Auto") { "Aktiviert (Auto)" } else { $hyperLaunch }
 Write-Result "Hypervisor Launch Type" $hvSusp $hvText
-if ($hvSusp) { Add-Finding "Hypervisor deaktiviert - Hyper-V / VBS nicht aktiv" }
+if ($hvSusp) { Add-Finding "Hypervisor Launch Type deaktiviert (Off)" }
  
+# --- 8. Hyper-V Windows Feature ---
 $hvFeature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -ErrorAction SilentlyContinue
 if ($hvFeature) {
     $hvAktiv = ($hvFeature.State -eq "Enabled")
@@ -240,22 +246,23 @@ if ($hvFeature) {
     Write-Result "Hyper-V Feature" $true "Nicht installiert"
 }
  
-# Defender
+# --- 9. Defender Echtzeit-Schutz ---
 try {
     $mp = Get-MpComputerStatus -ErrorAction Stop
-    Write-Result "Defender Echtzeit-Schutz" (-not $mp.RealTimeProtectionEnabled) $(if ($mp.RealTimeProtectionEnabled) { "Aktiv" } else { "Deaktiviert" })
-    if (-not $mp.RealTimeProtectionEnabled) { Add-Finding "Defender Echtzeit-Schutz deaktiviert" }
+    $rtAktiv = $mp.RealTimeProtectionEnabled
+    Write-Result "Defender Echtzeit-Schutz" (-not $rtAktiv) $(if ($rtAktiv) { "Aktiv" } else { "Deaktiviert" })
+    if (-not $rtAktiv) { Add-Finding "Defender Echtzeit-Schutz deaktiviert" }
 } catch {
     Write-Result "Defender Echtzeit-Schutz" $true "Nicht verfuegbar"
     Add-Finding "Defender nicht verfuegbar - moeglicherweise entfernt"
 }
  
-# Spectre / Meltdown
+# --- 10. Spectre / Meltdown Mitigationen ---
 $specKey    = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management"
 $fsOverride = (Get-ItemProperty -Path $specKey -ErrorAction SilentlyContinue).FeatureSettingsOverride
 $fsMask     = (Get-ItemProperty -Path $specKey -ErrorAction SilentlyContinue).FeatureSettingsOverrideMask
 $specSusp   = ($fsOverride -eq 3 -and $fsMask -eq 3)
-Write-Result "Spectre / Meltdown Schutz" $specSusp $(if ($specSusp) { "Deaktiviert (Override=3, Mask=3)" } else { "Standard" })
+Write-Result "Spectre / Meltdown Mitigationen" $specSusp $(if ($specSusp) { "Deaktiviert (Override=3, Mask=3)" } else { "Aktiv (Standard)" })
 if ($specSusp) { Add-Finding "Spectre / Meltdown Mitigationen manuell deaktiviert" }
  
 # ===========================================================================
