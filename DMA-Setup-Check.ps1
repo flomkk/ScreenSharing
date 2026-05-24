@@ -11,7 +11,7 @@ Write-Host -ForegroundColor Magenta @"
    ██████╔╝██║ ╚═╝ ██║██║  ██║    ███████║╚██████╗██║  ██║██║ ╚████║██║ ╚████║███████╗██║  ██║
    ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝    ╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝
 "@
-Write-Host "                            Made by flomkk - " -NoNewline -ForegroundColor White
+Write-Host "                               Made by flomkk - " -NoNewline -ForegroundColor White
 Write-Host "github.com/flomkk" -ForegroundColor Magenta
 Write-Host ""
  
@@ -387,6 +387,167 @@ foreach ($dev in $unknownDevices) {
  
 if ($unknownHits -eq 0) {
     Write-Result "  Geraete ohne Treiber" $false "Keine unbekannten PCIe-Geraete gefunden"
+}
+ 
+# ===========================================================================
+# BYPASS-ERKENNUNG & FORENSIK
+# ===========================================================================
+Write-Section "BYPASS-ERKENNUNG UND FORENSIK"
+ 
+# --- USN Journal ---
+$usnStatus = & fsutil usn queryjournal C: 2>&1 | Out-String
+$usnDeleted = $usnStatus -match "ungueltig|invalid|nicht gefunden|not found|error"
+Write-Result "USN Journal (C:)" $usnDeleted $(if ($usnDeleted) { "Geloescht oder deaktiviert" } else { "Vorhanden" })
+if ($usnDeleted) { Add-Finding "USN Journal geloescht - haeufige Bypass-Methode" }
+ 
+# --- Prefetch ---
+$pfPath    = "$env:SystemRoot\Prefetch"
+$pfExists  = Test-Path $pfPath
+$pfFiles   = if ($pfExists) { (Get-ChildItem $pfPath -ErrorAction SilentlyContinue).Count } else { 0 }
+$pfSusp    = (-not $pfExists -or $pfFiles -eq 0)
+Write-Result "Prefetch Ordner" $pfSusp $(if (-not $pfExists) { "Ordner fehlt - geloescht oder umbenannt" } elseif ($pfFiles -eq 0) { "Leer ($pfFiles Dateien) - moeglicherweise geleert" } else { "Vorhanden ($pfFiles Dateien)" })
+if ($pfSusp) { Add-Finding "Prefetch Ordner geloescht oder geleert - Bypass-Verdacht" }
+ 
+# --- Prefetch deaktiviert per Registry ---
+$pfReg  = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" -ErrorAction SilentlyContinue).EnablePrefetcher
+$pfDis  = ($pfReg -eq 0)
+Write-Result "Prefetch aktiviert (Registry)" $pfDis $(if ($pfDis) { "Deaktiviert (EnablePrefetcher=0)" } else { "Aktiv (Wert: $pfReg)" })
+if ($pfDis) { Add-Finding "Prefetch per Registry deaktiviert - verhindert Ausfuehrungs-Logging" }
+ 
+# --- Event Logs (System + Security) geleert ---
+$evtSusp = $false
+$evtLogs = @("System", "Security", "Application")
+foreach ($log in $evtLogs) {
+    try {
+        $evt    = Get-WinEvent -ListLog $log -ErrorAction Stop
+        $leert  = ($evt.RecordCount -eq 0)
+        Write-Result "Event Log: $log" $leert $(if ($leert) { "LEER - moeglicherweise geleert" } else { "$($evt.RecordCount) Eintraege" })
+        if ($leert) {
+            Add-Finding "Event Log '$log' ist leer - moeglicherweise gezielt geleert"
+            $evtSusp = $true
+        }
+    } catch {
+        Write-Result "Event Log: $log" $true "Nicht zugreifbar"
+    }
+}
+ 
+# --- Systemzeit Manipulation (Uptime vs. letzte Aenderung kritischer Logs) ---
+$bootTime   = (Get-CimInstance -ClassName Win32_OperatingSystem).LastBootUpTime
+$now        = Get-Date
+$uptimeMins = ($now - $bootTime).TotalMinutes
+$sysLog     = Get-WinEvent -ListLog "System" -ErrorAction SilentlyContinue
+$timeSusp   = $false
+if ($sysLog -and $sysLog.LastWriteTime) {
+    $logAge    = ($now - $sysLog.LastWriteTime).TotalMinutes
+    $timeSusp  = ($logAge -gt ($uptimeMins + 60))
+    Write-Result "Systemzeit Konsistenz" $timeSusp $(if ($timeSusp) { "Auffaellig - Log-Zeitstempel passt nicht zur Uptime" } else { "OK (Uptime: $([math]::Round($uptimeMins,0)) Min)" })
+    if ($timeSusp) { Add-Finding "Systemzeit wurde moeglicherweise vor Screen-Share manipuliert" }
+} else {
+    Write-Result "Systemzeit Konsistenz" $false "Nicht pruefbar"
+}
+ 
+# --- BAM - Ausgefuehrte Dateien seit letztem Boot ---
+Write-Host ""
+Write-Host "   BAM - Ausgefuehrte Dateien (seit letztem Boot)" -ForegroundColor White
+ 
+$bamBase   = "HKLM:\SYSTEM\CurrentControlSet\Services\bam\State\UserSettings"
+$bamSids   = Get-ChildItem -Path $bamBase -ErrorAction SilentlyContinue
+$bamSusp   = @(
+    "pcileech", "memprocfs", "vivado", "zadig", "dmacheck",
+    "winpmem", "arsenal", "squirrel", "leechcore", "screamer",
+    "fpga", "jtagprogrammer", "openocd", "pcie_injector"
+)
+$bamHits   = 0
+$bamAll    = [System.Collections.Generic.List[string]]::new()
+ 
+foreach ($sid in $bamSids) {
+    $entries = $sid.GetValueNames() | Where-Object { $_ -like "*.exe" -or $_ -like "*.dll" }
+    foreach ($entry in $entries) {
+        $name = [System.IO.Path]::GetFileNameWithoutExtension($entry).ToLower()
+        $bamAll.Add($entry)
+        foreach ($susp in $bamSusp) {
+            if ($name -match $susp) {
+                Write-Result "  BAM TREFFER" $true "$entry"
+                Add-Finding "BAM: Verdaechtiges Tool ausgefuehrt: $entry"
+                $bamHits++
+            }
+        }
+    }
+}
+if ($bamHits -eq 0) {
+    Write-Result "  BAM Scan" $false "Keine bekannten DMA-Tools gefunden ($($bamAll.Count) Eintraege geprueft)"
+}
+ 
+# --- Mehrere Maeuse (KMBox / Eingabegeraete) ---
+$mice     = Get-CimInstance -ClassName Win32_PointingDevice -ErrorAction SilentlyContinue |
+            Where-Object { $_.PNPClass -eq "Mouse" -or $_.Description -match "mouse|maus" }
+$miceCount = ($mice | Measure-Object).Count
+$miceSusp  = ($miceCount -gt 1)
+Write-Result "Angeschlossene Maeuse" $miceSusp "$miceCount erkannt$(if ($miceSusp) { ' - mehrere Eingabegeraete (KMBox?)' } else { '' })"
+if ($miceSusp) { Add-Finding "Mehrere Maus-Geraete erkannt ($miceCount) - moeglicherweise KMBox oder zweite Maus" }
+ 
+# --- USB Capture Cards / Video Fuser ---
+Write-Host ""
+Write-Host "   USB Capture Cards und Video Fuser" -ForegroundColor White
+ 
+$captureVids = @{
+    "07CA" = "AVerMedia Capture Card"
+    "1CEA" = "AVerMedia"
+    "1E4E" = "Elgato / Corsair Capture"
+    "0FD9" = "Elgato"
+    "2040" = "Hauppauge"
+    "EB1A" = "eMPIA Technology (Capture)"
+    "1164" = "YUAN Capture Card"
+    "1822" = "Twinhan Capture"
+    "04BB" = "I-O Data Capture"
+    "2935" = "Magewell Capture"
+    "1D27" = "XIMEA Capture"
+}
+ 
+$usbDevices  = Get-CimInstance -ClassName Win32_PnPEntity -ErrorAction SilentlyContinue |
+               Where-Object { $_.DeviceID -like "USB\VID_*" }
+$captureHits = 0
+ 
+foreach ($dev in $usbDevices) {
+    if ($dev.DeviceID -match "VID_([0-9A-Fa-f]{4})") {
+        $vid = $Matches[1].ToUpper()
+        if ($captureVids.ContainsKey($vid)) {
+            Write-Result "  Capture Device" $true "$($dev.Name)  (VID: $vid - $($captureVids[$vid]))"
+            Add-Finding "Capture Card / Video Fuser gefunden: $($dev.Name) (VID:$vid) - wird fuer DMA-Dual-Screen genutzt"
+            $captureHits++
+        }
+    }
+}
+if ($captureHits -eq 0) {
+    Write-Result "  Capture Cards" $false "Keine bekannten Capture Cards gefunden"
+}
+ 
+# --- Defender Ausnahmen ---
+Write-Host ""
+Write-Host "   Windows Defender Ausnahmen" -ForegroundColor White
+ 
+$defExclPaths   = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Exclusions\Paths"    -ErrorAction SilentlyContinue).PSObject.Properties | Where-Object { $_.Name -notlike "PS*" }
+$defExclProcs   = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Exclusions\Processes" -ErrorAction SilentlyContinue).PSObject.Properties | Where-Object { $_.Name -notlike "PS*" }
+$defExclExt     = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Exclusions\Extensions" -ErrorAction SilentlyContinue).PSObject.Properties | Where-Object { $_.Name -notlike "PS*" }
+$defHits        = 0
+ 
+foreach ($excl in $defExclPaths) {
+    Write-Result "  Pfad-Ausnahme" $true "$($excl.Name)"
+    Add-Finding "Defender Pfad-Ausnahme: $($excl.Name)"
+    $defHits++
+}
+foreach ($excl in $defExclProcs) {
+    Write-Result "  Prozess-Ausnahme" $true "$($excl.Name)"
+    Add-Finding "Defender Prozess-Ausnahme: $($excl.Name)"
+    $defHits++
+}
+foreach ($excl in $defExclExt) {
+    Write-Result "  Erweiterungs-Ausnahme" $true "$($excl.Name)"
+    Add-Finding "Defender Erweiterungs-Ausnahme: $($excl.Name)"
+    $defHits++
+}
+if ($defHits -eq 0) {
+    Write-Result "  Defender Ausnahmen" $false "Keine Ausnahmen konfiguriert"
 }
  
 # ===========================================================================
