@@ -162,28 +162,14 @@ foreach ($dev in $pciAll) {
 # ===========================================================================
 Write-Section "FORENSIK CHECKS"
  
-# --- IOMMU (Registry-basiert, kein WMI benoetigt) ---
-$iommuKey     = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions"
-$kdmaRegKey   = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceGuard"
-$kdmaReg      = (Get-ItemProperty -Path $kdmaRegKey -ErrorAction SilentlyContinue)
-$iommuEnabled = $false
+# --- IOMMU / Kernel-DMA-Schutz (nur Registry, kein WMI, kein Fenster) ---
+$kdmaReg      = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceGuard" -ErrorAction SilentlyContinue
+$kdmaReg2     = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" -ErrorAction SilentlyContinue
  
-# Methode 1: Kernel DMA Protection via DeviceGuard Registry
-if ($kdmaReg) {
-    # HypervisorEnforcedDmaProtection = 1 bedeutet Kernel-DMA-Schutz aktiv
-    $iommuEnabled = ($kdmaReg.HypervisorEnforcedDmaProtection -eq 1)
-}
- 
-# Methode 2: Systeminfo-Output parsen als Fallback
-if (-not $iommuEnabled) {
-    $sysinfo = & msinfo32 /nfo "$env:TEMP\sysinfo_dma.nfo" 2>$null
-    Start-Sleep -Seconds 2
-    $nfoContent = Get-Content "$env:TEMP\sysinfo_dma.nfo" -ErrorAction SilentlyContinue -Encoding Unicode
-    if ($nfoContent -match "Kernel-DMA-Schutz.*Ein|Kernel DMA Protection.*On") {
-        $iommuEnabled = $true
-    }
-    Remove-Item "$env:TEMP\sysinfo_dma.nfo" -ErrorAction SilentlyContinue
-}
+# HypervisorEnforcedDmaProtection = 1 -> Kernel-DMA-Schutz aktiv
+# EnableVirtualizationBasedSecurity muss ebenfalls 1 sein damit DMA-Schutz greift
+$iommuEnabled = ($kdmaReg.HypervisorEnforcedDmaProtection -eq 1) -or
+                ($kdmaReg2.EnableVirtualizationBasedSecurity -eq 1 -and $kdmaReg.HypervisorEnforcedDmaProtection -eq 1)
  
 Write-Result "IOMMU / Kernel-DMA-Schutz" (-not $iommuEnabled) `
     $(if ($iommuEnabled) { "Aktiv" } else { "Deaktiviert" })
@@ -210,7 +196,9 @@ if ($vbsStatus -eq 0) { Add-Finding "VBS deaktiviert" }
  
 # Credential Guard
 if ($dgWmi) {
-    $cgRunning = ($dgWmi.SecurityServicesRunning -band 0x1) -ne 0
+    # SecurityServicesRunning ist ein UInt32-Array - einzelne Werte summieren
+    $svcRunning = ($dgWmi.SecurityServicesRunning | Measure-Object -Sum).Sum
+    $cgRunning  = ($svcRunning -band 0x1) -ne 0
     Write-Result "Credential Guard" (-not $cgRunning) $(if ($cgRunning) { "Aktiv" } else { "Deaktiviert" })
     if (-not $cgRunning) { Add-Finding "Credential Guard deaktiviert" }
 } else {
