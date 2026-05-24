@@ -90,7 +90,7 @@ foreach ($gpu in $gpus) {
  
 # PCIe Slots
 Write-Host ""
-Write-Host "   PCIe Steckplaetze (SMBIOS)" -ForegroundColor White
+Write-Host "   PCIe Steckplätze (SMBIOS)" -ForegroundColor White
 $slots = Get-CimInstance -ClassName Win32_SystemSlot -ErrorAction SilentlyContinue
 if ($slots) {
     foreach ($sl in $slots) {
@@ -103,9 +103,9 @@ if ($slots) {
     Write-Host "   Keine SMBIOS Slot-Daten verfuegbar." -ForegroundColor DarkGray
 }
  
-# Alle PCI Geraete
+# Alle PCI Geräte
 Write-Host ""
-Write-Host "   PCI / PCIe Geraete" -ForegroundColor White
+Write-Host "   PCI / PCIe Geräte" -ForegroundColor White
  
 $vendorNames = @{
     "1002" = "AMD"
@@ -281,7 +281,7 @@ $knownDmaDevices = @{
     "10EE:8011" = "Xilinx PCIe DMA"
     "1172:E001" = "Altera FPGA DMA"
     "1172:0004" = "Altera PCIe MegaCore"
-    "1D6C:1337" = "Artix-7 DMA (haeufige ID)"
+    "1D6C:1337" = "Artix-7 DMA (häufige ID)"
     "1234:1111" = "QEMU generisches FPGA"
     "0BDA:8153" = "SQRL Acorn CLE-215+"
 }
@@ -302,7 +302,7 @@ $allPci    = Get-CimInstance -ClassName Win32_PnPEntity -ErrorAction SilentlyCon
 $totalHits = 0
  
 Write-Host ""
-Write-Host "   Exakte Geraete-IDs (VEN+DEV)" -ForegroundColor White
+Write-Host "   Exakte Geräte-IDs (VEN+DEV)" -ForegroundColor White
  
 $deviceHits = 0
 foreach ($dev in $allPci) {
@@ -333,16 +333,16 @@ foreach ($dev in $allPci) {
         $did = $Matches[2].ToUpper()
         $key = "$vid`:$did"
         if ($knownDmaVendors.ContainsKey($vid) -and -not $knownDmaDevices.ContainsKey($key)) {
-            Write-Result "  Verdaechtiger Hersteller" $true "$($dev.Name)"
+            Write-Result "  Verdächtiger Hersteller" $true "$($dev.Name)"
             Write-Host "   $("  VEN:$vid DEV:$did".PadRight(35)) $($knownDmaVendors[$vid])" -ForegroundColor DarkYellow
-            Add-Finding "Verdaechtiger FPGA-Hersteller: $($dev.Name) (VEN:$vid DEV:$did - $($knownDmaVendors[$vid]))"
+            Add-Finding "Verdächtiger FPGA-Hersteller: $($dev.Name) (VEN:$vid DEV:$did - $($knownDmaVendors[$vid]))"
             $vendorHits++
             $totalHits++
         }
     }
 }
 if ($vendorHits -eq 0) {
-    Write-Result "  Vendor ID" $false "Keine verdaechtigen FPGA-Hersteller gefunden"
+    Write-Result "  Vendor ID" $false "Keine verdächtigen FPGA-Hersteller gefunden"
 }
  
 # ===========================================================================
@@ -350,8 +350,8 @@ if ($vendorHits -eq 0) {
 # ===========================================================================
 Write-Section "UNBEKANNTE UND FEHLERHAFTE GERÄTE"
  
-# Geraete ohne Treiber oder mit Fehler sind verdaechtig - DMA-Karten erscheinen
-# haeufig als "Unbekanntes Geraet" wenn kein passender Treiber installiert ist
+# Geräte ohne Treiber oder mit Fehler sind verdächtig - DMA-Karten erscheinen
+# häufig als "Unbekanntes Gerät" wenn kein passender Treiber installiert ist
 $unknownDevices = Get-CimInstance -ClassName Win32_PnPEntity -ErrorAction SilentlyContinue |
                   Where-Object {
                       $_.DeviceID -like "PCI\*" -and (
@@ -367,10 +367,10 @@ foreach ($dev in $unknownDevices) {
     $errCode = $dev.ConfigManagerErrorCode
     $errText = switch ($errCode) {
         1  { "Kein Treiber" }
-        10 { "Geraet kann nicht starten" }
+        10 { "Gerät kann nicht starten" }
         18 { "Treiber neu installieren" }
         28 { "Treiber nicht installiert" }
-        43 { "Windows hat Geraet angehalten" }
+        43 { "Windows hat Gerät angehalten" }
         default { "Fehlercode $errCode" }
     }
     $vid = ""
@@ -380,13 +380,13 @@ foreach ($dev in $unknownDevices) {
         $did = $Matches[2].ToUpper()
     }
     Write-Result "  $($dev.Name)" $true "$errText  |  VEN:$vid DEV:$did"
-    Add-Finding "Unbekanntes / fehlerhaftes PCIe-Geraet: $($dev.Name) VEN:$vid DEV:$did ($errText)"
+    Add-Finding "Unbekanntes / fehlerhaftes PCIe-Gerät: $($dev.Name) VEN:$vid DEV:$did ($errText)"
     $unknownHits++
     $totalHits++
 }
  
 if ($unknownHits -eq 0) {
-    Write-Result "  Geraete ohne Treiber" $false "Keine unbekannten PCIe-Geraete gefunden"
+    Write-Result "  Geräte ohne Treiber" $false "Keine unbekannten PCIe-Geräte gefunden"
 }
  
 # ===========================================================================
@@ -398,7 +398,7 @@ Write-Section "BYPASS-ERKENNUNG UND FORENSIK"
 $usnStatus = & fsutil usn queryjournal C: 2>&1 | Out-String
 $usnDeleted = $usnStatus -match "ungueltig|invalid|nicht gefunden|not found|error"
 Write-Result "USN Journal (C:)" $usnDeleted $(if ($usnDeleted) { "Gelöscht oder deaktiviert" } else { "Vorhanden" })
-if ($usnDeleted) { Add-Finding "USN Journal gelöscht - haeufige Bypass-Methode" }
+if ($usnDeleted) { Add-Finding "USN Journal gelöscht - häufige Bypass-Methode" }
  
 # --- Prefetch ---
 $pfPath    = "$env:SystemRoot\Prefetch"
@@ -421,7 +421,7 @@ foreach ($log in $evtLogs) {
     try {
         $evt    = Get-WinEvent -ListLog $log -ErrorAction Stop
         $leert  = ($evt.RecordCount -eq 0)
-        Write-Result "Event Log: $log" $leert $(if ($leert) { "LEER - möglicherweise geleert" } else { "$($evt.RecordCount) Eintraege" })
+        Write-Result "Event Log: $log" $leert $(if ($leert) { "LEER - möglicherweise geleert" } else { "$($evt.RecordCount) Einträge" })
         if ($leert) {
             Add-Finding "Event Log '$log' ist leer - möglicherweise gezielt geleert"
             $evtSusp = $true
@@ -440,7 +440,7 @@ $timeSusp   = $false
 if ($sysLog -and $sysLog.LastWriteTime) {
     $logAge    = ($now - $sysLog.LastWriteTime).TotalMinutes
     $timeSusp  = ($logAge -gt ($uptimeMins + 60))
-    Write-Result "Systemzeit Konsistenz" $timeSusp $(if ($timeSusp) { "Auffaellig - Log-Zeitstempel passt nicht zur Uptime" } else { "OK (Uptime: $([math]::Round($uptimeMins,0)) Min)" })
+    Write-Result "Systemzeit Konsistenz" $timeSusp $(if ($timeSusp) { "Auffällig - Log-Zeitstempel passt nicht zur Uptime" } else { "OK (Uptime: $([math]::Round($uptimeMins,0)) Min)" })
     if ($timeSusp) { Add-Finding "Systemzeit wurde möglicherweise vor Screen-Share manipuliert" }
 } else {
     Write-Result "Systemzeit Konsistenz" $false "Nicht pruefbar"
@@ -468,23 +468,23 @@ foreach ($sid in $bamSids) {
         foreach ($susp in $bamSusp) {
             if ($name -match $susp) {
                 Write-Result "  BAM TREFFER" $true "$entry"
-                Add-Finding "BAM: Verdaechtiges Tool ausgefuehrt: $entry"
+                Add-Finding "BAM: Verdächtiges Tool ausgefuehrt: $entry"
                 $bamHits++
             }
         }
     }
 }
 if ($bamHits -eq 0) {
-    Write-Result "  BAM Scan" $false "Keine bekannten DMA-Tools gefunden ($($bamAll.Count) Eintraege geprueft)"
+    Write-Result "  BAM Scan" $false "Keine bekannten DMA-Tools gefunden ($($bamAll.Count) Einträge geprueft)"
 }
  
-# --- Mehrere Maeuse (KMBox / Eingabegeraete) ---
+# --- Mehrere Mäuse (KMBox / Eingabegeräte) ---
 $mice     = Get-CimInstance -ClassName Win32_PointingDevice -ErrorAction SilentlyContinue |
             Where-Object { $_.PNPClass -eq "Mouse" -or $_.Description -match "mouse|maus" }
 $miceCount = ($mice | Measure-Object).Count
 $miceSusp  = ($miceCount -gt 1)
-Write-Result "Angeschlossene Maeuse" $miceSusp "$miceCount erkannt$(if ($miceSusp) { ' - mehrere Eingabegeraete (KMBox?)' } else { '' })"
-if ($miceSusp) { Add-Finding "Mehrere Maus-Geraete erkannt ($miceCount) - möglicherweise KMBox oder zweite Maus" }
+Write-Result "Angeschlossene Mäuse" $miceSusp "$miceCount erkannt$(if ($miceSusp) { ' - mehrere Eingabegeräte (KMBox?)' } else { '' })"
+if ($miceSusp) { Add-Finding "Mehrere Maus-Geräte erkannt ($miceCount) - möglicherweise KMBox oder zweite Maus" }
  
 # --- USB Capture Cards / Video Fuser ---
 Write-Host ""
@@ -560,7 +560,7 @@ Write-Host "   $("=" * 80)" -ForegroundColor DarkGray
 Write-Host ""
  
 if ($findings.Count -eq 0) {
-    Write-Host "   [+] Keine Auffaelligkeiten - System zeigt keine DMA-Vorbereitung." -ForegroundColor Green
+    Write-Host "   [+] Keine Auffälligkeiten - System zeigt keine DMA-Vorbereitung." -ForegroundColor Green
 } else {
     foreach ($f in $findings) {
         Write-Host "   [!] $f" -ForegroundColor Red
