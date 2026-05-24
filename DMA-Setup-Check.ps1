@@ -15,9 +15,6 @@ Write-Host -ForegroundColor Magenta @"
 Write-Host "                         Made by flomkk - " -NoNewline -ForegroundColor White
 Write-Host "github.com/flomkk" -ForegroundColor Magenta
 Write-Host ""
-Write-Host "   Prueft ob dieses System fuer den Einsatz einer DMA-Karte konfiguriert wurde." -ForegroundColor DarkGray
-Write-Host "   Gedacht fuer FiveM Server-Admins waehrend Screen-Sharing Sessions." -ForegroundColor DarkGray
-Write-Host ""
  
 $findings = [System.Collections.Generic.List[string]]::new()
  
@@ -114,14 +111,60 @@ if ($slots) {
 # Alle PCI Geraete
 Write-Host ""
 Write-Host "   PCI / PCIe Geraete" -ForegroundColor White
+ 
+$vendorNames = @{
+    "1002" = "AMD"
+    "1022" = "AMD"
+    "10DE" = "NVIDIA"
+    "10EC" = "Realtek"
+    "10EE" = "Xilinx FPGA"
+    "1172" = "Altera / Intel FPGA"
+    "1204" = "Lattice Semiconductor FPGA"
+    "11E3" = "QuickLogic FPGA"
+    "1217" = "O2 Micro"
+    "1234" = "QEMU / generisches FPGA-Board"
+    "1414" = "Microsoft"
+    "14E4" = "Broadcom"
+    "168C" = "Qualcomm Atheros"
+    "1814" = "Ralink Technology"
+    "1912" = "Renesas"
+    "1B21" = "ASMedia"
+    "1B73" = "Fresco Logic"
+    "1C5C" = "SK Hynix"
+    "1D6C" = "Artix-7 DMA-Karte (generisch)"
+    "1F40" = "Chelsio"
+    "2646" = "Kingston"
+    "8086" = "Intel"
+    "0BDA" = "LambdaConcept (SQRL Acorn / Screamer)"
+    "0B05" = "ASUS"
+}
+ 
+$dmaVendors = @("10EE","1172","1204","11E3","1234","1D6C","0BDA")
+ 
 $pciAll = Get-CimInstance -ClassName Win32_PnPEntity -ErrorAction SilentlyContinue |
           Where-Object { $_.DeviceID -like "PCI\*" } | Sort-Object Name
+ 
 foreach ($dev in $pciAll) {
-    $loc = ""
+    $vid    = ""
+    $did    = ""
+    $loc    = ""
+    $vendor = ""
+ 
+    if ($dev.DeviceID -match "VEN_([0-9A-Fa-f]{4})&DEV_([0-9A-Fa-f]{4})") {
+        $vid    = $Matches[1].ToUpper()
+        $did    = $Matches[2].ToUpper()
+        $vendor = if ($vendorNames.ContainsKey($vid)) { $vendorNames[$vid] } else { "Unbekannt" }
+    }
     if ($dev.DeviceID -match "BUS_(\w+)&DEV_(\w+)&FUNC_(\w+)") {
         $loc = "Bus $([Convert]::ToInt32($Matches[1],16)) Slot $([Convert]::ToInt32($Matches[2],16)) Func $([Convert]::ToInt32($Matches[3],16))"
     }
-    Write-Host "   $($dev.Name.PadRight(50)) $loc" -ForegroundColor Gray
+ 
+    $isDma  = $dmaVendors -contains $vid
+    $color  = if ($isDma) { "Yellow" } else { "Gray" }
+    $prefix = if ($isDma) { "   [!]" } else { "      " }
+ 
+    Write-Host "$prefix $($dev.Name.PadRight(45))" -NoNewline -ForegroundColor $color
+    Write-Host " VEN:$vid DEV:$did  $($vendor.PadRight(30)) $loc" -ForegroundColor $color
 }
  
 # ===========================================================================
