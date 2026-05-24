@@ -11,8 +11,7 @@ Write-Host -ForegroundColor Magenta @"
    ██████╔╝██║ ╚═╝ ██║██║  ██║    ███████║╚██████╗██║  ██║██║ ╚████║██║ ╚████║███████╗██║  ██║
    ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝    ╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝
 "@
-
-Write-Host "                         Made by flomkk - " -NoNewline -ForegroundColor White
+Write-Host "                            Made by flomkk - " -NoNewline -ForegroundColor White
 Write-Host "github.com/flomkk" -ForegroundColor Magenta
 Write-Host ""
  
