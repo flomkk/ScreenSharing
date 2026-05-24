@@ -187,7 +187,7 @@ if ($dgWmi) {
     $kdmaAktiv = ($iommuEnabled -and $dgReg2.EnableVirtualizationBasedSecurity -eq 1)
 }
 Write-Result "Kernel-DMA-Schutz" (-not $kdmaAktiv) $(if ($kdmaAktiv) { "Aktiv" } else { "Deaktiviert" })
-if (-not $kdmaAktiv) { Add-Finding "Kernel-DMA-Schutz deaktiviert - DMA-Zugriff auf RAM moeglich" }
+if (-not $kdmaAktiv) { Add-Finding "Kernel-DMA-Schutz deaktiviert - DMA-Zugriff auf RAM möglich" }
  
 # --- 3. VBS ---
 $vbsStatus = 0
@@ -253,7 +253,7 @@ try {
     if (-not $rtAktiv) { Add-Finding "Defender Echtzeit-Schutz deaktiviert" }
 } catch {
     Write-Result "Defender Echtzeit-Schutz" $true "Nicht verfuegbar"
-    Add-Finding "Defender nicht verfuegbar - moeglicherweise entfernt"
+    Add-Finding "Defender nicht verfuegbar - möglicherweise entfernt"
 }
  
 # --- 10. Spectre / Meltdown Mitigationen ---
@@ -346,9 +346,9 @@ if ($vendorHits -eq 0) {
 }
  
 # ===========================================================================
-# UNBEKANNTE / FEHLERHAFTE GERAETE
+# UNBEKANNTE / FEHLERHAFTE GERÄTE
 # ===========================================================================
-Write-Section "UNBEKANNTE UND FEHLERHAFTE GERAETE"
+Write-Section "UNBEKANNTE UND FEHLERHAFTE GERÄTE"
  
 # Geraete ohne Treiber oder mit Fehler sind verdaechtig - DMA-Karten erscheinen
 # haeufig als "Unbekanntes Geraet" wenn kein passender Treiber installiert ist
@@ -397,16 +397,16 @@ Write-Section "BYPASS-ERKENNUNG UND FORENSIK"
 # --- USN Journal ---
 $usnStatus = & fsutil usn queryjournal C: 2>&1 | Out-String
 $usnDeleted = $usnStatus -match "ungueltig|invalid|nicht gefunden|not found|error"
-Write-Result "USN Journal (C:)" $usnDeleted $(if ($usnDeleted) { "Geloescht oder deaktiviert" } else { "Vorhanden" })
-if ($usnDeleted) { Add-Finding "USN Journal geloescht - haeufige Bypass-Methode" }
+Write-Result "USN Journal (C:)" $usnDeleted $(if ($usnDeleted) { "Gelöscht oder deaktiviert" } else { "Vorhanden" })
+if ($usnDeleted) { Add-Finding "USN Journal gelöscht - haeufige Bypass-Methode" }
  
 # --- Prefetch ---
 $pfPath    = "$env:SystemRoot\Prefetch"
 $pfExists  = Test-Path $pfPath
 $pfFiles   = if ($pfExists) { (Get-ChildItem $pfPath -ErrorAction SilentlyContinue).Count } else { 0 }
 $pfSusp    = (-not $pfExists -or $pfFiles -eq 0)
-Write-Result "Prefetch Ordner" $pfSusp $(if (-not $pfExists) { "Ordner fehlt - geloescht oder umbenannt" } elseif ($pfFiles -eq 0) { "Leer ($pfFiles Dateien) - moeglicherweise geleert" } else { "Vorhanden ($pfFiles Dateien)" })
-if ($pfSusp) { Add-Finding "Prefetch Ordner geloescht oder geleert - Bypass-Verdacht" }
+Write-Result "Prefetch Ordner" $pfSusp $(if (-not $pfExists) { "Ordner fehlt - gelöscht oder umbenannt" } elseif ($pfFiles -eq 0) { "Leer ($pfFiles Dateien) - möglicherweise geleert" } else { "Vorhanden ($pfFiles Dateien)" })
+if ($pfSusp) { Add-Finding "Prefetch Ordner gelöscht oder geleert - Bypass-Verdacht" }
  
 # --- Prefetch deaktiviert per Registry ---
 $pfReg  = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" -ErrorAction SilentlyContinue).EnablePrefetcher
@@ -421,9 +421,9 @@ foreach ($log in $evtLogs) {
     try {
         $evt    = Get-WinEvent -ListLog $log -ErrorAction Stop
         $leert  = ($evt.RecordCount -eq 0)
-        Write-Result "Event Log: $log" $leert $(if ($leert) { "LEER - moeglicherweise geleert" } else { "$($evt.RecordCount) Eintraege" })
+        Write-Result "Event Log: $log" $leert $(if ($leert) { "LEER - möglicherweise geleert" } else { "$($evt.RecordCount) Eintraege" })
         if ($leert) {
-            Add-Finding "Event Log '$log' ist leer - moeglicherweise gezielt geleert"
+            Add-Finding "Event Log '$log' ist leer - möglicherweise gezielt geleert"
             $evtSusp = $true
         }
     } catch {
@@ -441,7 +441,7 @@ if ($sysLog -and $sysLog.LastWriteTime) {
     $logAge    = ($now - $sysLog.LastWriteTime).TotalMinutes
     $timeSusp  = ($logAge -gt ($uptimeMins + 60))
     Write-Result "Systemzeit Konsistenz" $timeSusp $(if ($timeSusp) { "Auffaellig - Log-Zeitstempel passt nicht zur Uptime" } else { "OK (Uptime: $([math]::Round($uptimeMins,0)) Min)" })
-    if ($timeSusp) { Add-Finding "Systemzeit wurde moeglicherweise vor Screen-Share manipuliert" }
+    if ($timeSusp) { Add-Finding "Systemzeit wurde möglicherweise vor Screen-Share manipuliert" }
 } else {
     Write-Result "Systemzeit Konsistenz" $false "Nicht pruefbar"
 }
@@ -484,7 +484,7 @@ $mice     = Get-CimInstance -ClassName Win32_PointingDevice -ErrorAction Silentl
 $miceCount = ($mice | Measure-Object).Count
 $miceSusp  = ($miceCount -gt 1)
 Write-Result "Angeschlossene Maeuse" $miceSusp "$miceCount erkannt$(if ($miceSusp) { ' - mehrere Eingabegeraete (KMBox?)' } else { '' })"
-if ($miceSusp) { Add-Finding "Mehrere Maus-Geraete erkannt ($miceCount) - moeglicherweise KMBox oder zweite Maus" }
+if ($miceSusp) { Add-Finding "Mehrere Maus-Geraete erkannt ($miceCount) - möglicherweise KMBox oder zweite Maus" }
  
 # --- USB Capture Cards / Video Fuser ---
 Write-Host ""
@@ -570,13 +570,13 @@ if ($findings.Count -eq 0) {
         Write-Host "   BEWERTUNG: HOHES RISIKO" -ForegroundColor Red
         Write-Host "   Mehrere Sicherheitsmechanismen wurden gezielt deaktiviert." -ForegroundColor DarkGray
     } elseif ($findings.Count -ge 2) {
-        Write-Host "   BEWERTUNG: AUFFAELLIG" -ForegroundColor Yellow
+        Write-Host "   BEWERTUNG: AUFFÄLLIG" -ForegroundColor Yellow
         Write-Host "   Einige Einstellungen weichen vom Windows-Standard ab." -ForegroundColor DarkGray
     } else {
-        Write-Host "   BEWERTUNG: LEICHT AUFFAELLIG" -ForegroundColor Yellow
+        Write-Host "   BEWERTUNG: LEICHT AUFFÄLLIG" -ForegroundColor Yellow
         Write-Host "   Einzelner Befund - kein eindeutiger Beweis." -ForegroundColor DarkGray
     }
 }
  
 Write-Host ""
-Read-Host -Prompt "   Druecke ENTER zum Beenden"
+Read-Host -Prompt "   Drücke ENTER zum Beenden"
