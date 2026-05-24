@@ -577,6 +577,10 @@ if ($findings.Count -eq 0) {
         Write-Host "   Einzelner Befund - kein eindeutiger Beweis." -ForegroundColor DarkGray
     }
 }
- 
+
+Write-Host ""
+Write-Host "Check PCIe Geräte via https://devicehunt.com/" -ForegroundColor DarkGray
+Write-Host ""
+
 Write-Host ""
 Read-Host -Prompt "   Drücke ENTER zum Beenden"
