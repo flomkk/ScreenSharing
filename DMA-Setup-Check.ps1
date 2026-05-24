@@ -22,7 +22,7 @@ function Write-Section {
     param([string]$Text)
     Write-Host ""
     Write-Host "   $Text" -ForegroundColor Cyan
-    Write-Host "   $("=" * 75)" -ForegroundColor DarkGray
+    Write-Host "   $("=" * 80)" -ForegroundColor DarkGray
 }
  
 function Write-Result {
@@ -58,15 +58,13 @@ $ramModules = Get-CimInstance -ClassName Win32_PhysicalMemory -ErrorAction Silen
 $ramTotal   = ($ramModules | Measure-Object -Property Capacity -Sum).Sum / 1GB
 Write-Result "RAM Gesamt"           $false "$([math]::Round($ramTotal,1)) GB"
 foreach ($mod in $ramModules) {
-    $sizeGB   = [math]::Round($mod.Capacity / 1GB, 0)
-    $type     = switch ($mod.SMBIOSMemoryType) { 26{"DDR4"} 34{"DDR5"} 24{"DDR3"} default{"DDR?"} }
+    $sizeGB  = [math]::Round($mod.Capacity / 1GB, 0)
+    $type    = switch ($mod.SMBIOSMemoryType) { 26{"DDR4"} 34{"DDR5"} 24{"DDR3"} default{"DDR?"} }
     Write-Result "  Slot $($mod.DeviceLocator)" $false "$sizeGB GB $type @ $($mod.ConfiguredClockSpeed) MHz  ($($mod.Manufacturer.Trim()))"
 }
  
 $gpus = Get-CimInstance -ClassName Win32_VideoController -ErrorAction SilentlyContinue
 foreach ($gpu in $gpus) {
-    # Win32_VideoController.AdapterRAM ist 32-bit - max 4 GB darstellbar
-    # Korrekte VRAM-Abfrage ueber Registry (DXGI-Eintrag von Windows befuellt)
     $vram = "n/v"
     try {
         $regBase = "HKLM:\SYSTEM\ControlSet001\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
@@ -74,7 +72,6 @@ foreach ($gpu in $gpus) {
                    Where-Object { $_.GetValue("DriverDesc") -like "*$($gpu.Name.Split(" ")[2..10] -join " ")*" -or
                                   $_.GetValue("DriverDesc") -eq $gpu.Name }
         if (-not $subkeys) {
-            # Fallback: alle Subkeys nach passendem Treiber durchsuchen
             $subkeys = Get-ChildItem -Path $regBase -ErrorAction SilentlyContinue |
                        Where-Object { $_.GetValue("HardwareInformation.MemorySize") -gt 0 }
         }
@@ -86,7 +83,6 @@ foreach ($gpu in $gpus) {
             }
         }
     } catch { }
-    # Letzter Fallback: DXDIAG-Wert aus WMI mit uint64-Cast
     if ($vram -eq "n/v" -and $gpu.AdapterRAM -gt 0) {
         $vram = "$([math]::Round([uint64][uint32]$gpu.AdapterRAM / 1GB, 0)) GB (approx.)"
     }
@@ -145,11 +141,7 @@ $pciAll = Get-CimInstance -ClassName Win32_PnPEntity -ErrorAction SilentlyContin
           Where-Object { $_.DeviceID -like "PCI\*" } | Sort-Object Name
  
 foreach ($dev in $pciAll) {
-    $vid    = ""
-    $did    = ""
-    $loc    = ""
-    $vendor = ""
- 
+    $vid = ""; $did = ""; $loc = ""; $vendor = ""
     if ($dev.DeviceID -match "VEN_([0-9A-Fa-f]{4})&DEV_([0-9A-Fa-f]{4})") {
         $vid    = $Matches[1].ToUpper()
         $did    = $Matches[2].ToUpper()
@@ -158,11 +150,9 @@ foreach ($dev in $pciAll) {
     if ($dev.DeviceID -match "BUS_(\w+)&DEV_(\w+)&FUNC_(\w+)") {
         $loc = "Bus $([Convert]::ToInt32($Matches[1],16)) Slot $([Convert]::ToInt32($Matches[2],16)) Func $([Convert]::ToInt32($Matches[3],16))"
     }
- 
     $isDma  = $dmaVendors -contains $vid
     $color  = if ($isDma) { "Yellow" } else { "Gray" }
     $prefix = if ($isDma) { "   [!]" } else { "      " }
- 
     Write-Host "$prefix $($dev.Name.PadRight(45))" -NoNewline -ForegroundColor $color
     Write-Host " VEN:$vid DEV:$did  $($vendor.PadRight(30)) $loc" -ForegroundColor $color
 }
@@ -172,31 +162,69 @@ foreach ($dev in $pciAll) {
 # ===========================================================================
 Write-Section "FORENSIK CHECKS"
  
-# Kernel-DMA-Schutz
+# --- IOMMU (Registry-basiert, kein WMI benoetigt) ---
+$iommuKey     = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions"
+$kdmaRegKey   = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceGuard"
+$kdmaReg      = (Get-ItemProperty -Path $kdmaRegKey -ErrorAction SilentlyContinue)
+$iommuEnabled = $false
+ 
+# Methode 1: Kernel DMA Protection via DeviceGuard Registry
+if ($kdmaReg) {
+    # HypervisorEnforcedDmaProtection = 1 bedeutet Kernel-DMA-Schutz aktiv
+    $iommuEnabled = ($kdmaReg.HypervisorEnforcedDmaProtection -eq 1)
+}
+ 
+# Methode 2: Systeminfo-Output parsen als Fallback
+if (-not $iommuEnabled) {
+    $sysinfo = & msinfo32 /nfo "$env:TEMP\sysinfo_dma.nfo" 2>$null
+    Start-Sleep -Seconds 2
+    $nfoContent = Get-Content "$env:TEMP\sysinfo_dma.nfo" -ErrorAction SilentlyContinue -Encoding Unicode
+    if ($nfoContent -match "Kernel-DMA-Schutz.*Ein|Kernel DMA Protection.*On") {
+        $iommuEnabled = $true
+    }
+    Remove-Item "$env:TEMP\sysinfo_dma.nfo" -ErrorAction SilentlyContinue
+}
+ 
+Write-Result "IOMMU / Kernel-DMA-Schutz" (-not $iommuEnabled) `
+    $(if ($iommuEnabled) { "Aktiv" } else { "Deaktiviert" })
+if (-not $iommuEnabled) { Add-Finding "IOMMU / Kernel-DMA-Schutz deaktiviert" }
+ 
+# --- DeviceGuard Checks (WMI + Registry Fallback) ---
+$dgWmi = $null
 try {
-    $dg          = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -ErrorAction Stop
-    $kdmaRunning = ($dg.SecurityServicesRunning -band 0x10) -ne 0
-    Write-Result "Kernel-DMA-Schutz" (-not $kdmaRunning) $(if ($kdmaRunning) { "Aktiv" } else { "Deaktiviert" })
-    if (-not $kdmaRunning) { Add-Finding "Kernel-DMA-Schutz deaktiviert" }
+    $dgWmi = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -ErrorAction Stop
+} catch { }
  
-    $vbsStatus = $dg.VirtualizationBasedSecurityStatus
-    $vbsText   = switch ($vbsStatus) { 0{"Deaktiviert"} 1{"Aktiviert, nicht laufend"} 2{"Aktiv"} default{"Unbekannt ($vbsStatus)"} }
-    Write-Result "VBS" ($vbsStatus -eq 0) $vbsText
-    if ($vbsStatus -eq 0) { Add-Finding "VBS deaktiviert" }
+# VBS
+$vbsStatus = $null
+if ($dgWmi) {
+    $vbsStatus = $dgWmi.VirtualizationBasedSecurityStatus
+} else {
+    # Registry Fallback
+    $vbsReg = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" -ErrorAction SilentlyContinue)
+    if ($vbsReg.EnableVirtualizationBasedSecurity -eq 1) { $vbsStatus = 2 } else { $vbsStatus = 0 }
+}
+$vbsText = switch ($vbsStatus) { 0{"Deaktiviert"} 1{"Aktiviert, nicht laufend"} 2{"Aktiv"} default{"Unbekannt"} }
+Write-Result "VBS" ($vbsStatus -eq 0) $vbsText
+if ($vbsStatus -eq 0) { Add-Finding "VBS deaktiviert" }
  
-    $cgRunning = ($dg.SecurityServicesRunning -band 0x1) -ne 0
+# Credential Guard
+if ($dgWmi) {
+    $cgRunning = ($dgWmi.SecurityServicesRunning -band 0x1) -ne 0
     Write-Result "Credential Guard" (-not $cgRunning) $(if ($cgRunning) { "Aktiv" } else { "Deaktiviert" })
     if (-not $cgRunning) { Add-Finding "Credential Guard deaktiviert" }
-} catch {
-    Write-Result "DeviceGuard WMI" $true "Nicht verfuegbar (OS-Komponente entfernt)"
-    Add-Finding "DeviceGuard WMI nicht verfuegbar - moegliche OS-Manipulation"
+} else {
+    $cgReg = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -ErrorAction SilentlyContinue).LsaCfgFlags
+    $cgAktiv = ($cgReg -eq 1 -or $cgReg -eq 2)
+    Write-Result "Credential Guard" (-not $cgAktiv) $(if ($cgAktiv) { "Aktiv" } else { "Deaktiviert" })
+    if (-not $cgAktiv) { Add-Finding "Credential Guard deaktiviert" }
 }
  
 # HVCI
 $hvciKey = "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity"
 $hvciVal = (Get-ItemProperty -Path $hvciKey -ErrorAction SilentlyContinue).Enabled
 Write-Result "Memory Integrity (HVCI)" ($hvciVal -ne 1) $(if ($hvciVal -eq 1) { "Aktiv" } else { "Deaktiviert" })
-if ($hvciVal -ne 1) { Add-Finding "HVCI/Memory Integrity deaktiviert" }
+if ($hvciVal -ne 1) { Add-Finding "HVCI / Memory Integrity deaktiviert" }
  
 # Secure Boot
 try {
@@ -214,13 +242,12 @@ $hyperLaunch = if ($bcdOut -match "hypervisorlaunchtype\s+(\S+)") { $Matches[1] 
 $hvSusp      = ($hyperLaunch -ieq "Off")
 $hvText      = if ($hyperLaunch -ieq "Off") { "Deaktiviert" } elseif ($hyperLaunch -ieq "Auto") { "Aktiviert (Auto)" } else { $hyperLaunch }
 Write-Result "Hypervisor Launch Type" $hvSusp $hvText
-if ($hvSusp) { Add-Finding "Hypervisor deaktiviert - Hyper-V/VBS nicht aktiv" }
+if ($hvSusp) { Add-Finding "Hypervisor deaktiviert - Hyper-V / VBS nicht aktiv" }
  
 $hvFeature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -ErrorAction SilentlyContinue
 if ($hvFeature) {
-    $hvAktiv  = ($hvFeature.State -eq "Enabled")
-    $hvText   = if ($hvAktiv) { "Aktiviert" } else { "Deaktiviert" }
-    Write-Result "Hyper-V Feature" (-not $hvAktiv) $hvText
+    $hvAktiv = ($hvFeature.State -eq "Enabled")
+    Write-Result "Hyper-V Feature" (-not $hvAktiv) $(if ($hvAktiv) { "Aktiviert" } else { "Deaktiviert" })
 } else {
     Write-Result "Hyper-V Feature" $true "Nicht installiert"
 }
@@ -235,40 +262,40 @@ try {
     Add-Finding "Defender nicht verfuegbar - moeglicherweise entfernt"
 }
  
-# Spectre/Meltdown
+# Spectre / Meltdown
 $specKey    = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management"
 $fsOverride = (Get-ItemProperty -Path $specKey -ErrorAction SilentlyContinue).FeatureSettingsOverride
 $fsMask     = (Get-ItemProperty -Path $specKey -ErrorAction SilentlyContinue).FeatureSettingsOverrideMask
 $specSusp   = ($fsOverride -eq 3 -and $fsMask -eq 3)
-Write-Result "Spectre/Meltdown Schutz" $specSusp $(if ($specSusp) { "Deaktiviert (Override=3, Mask=3)" } else { "Standard" })
-if ($specSusp) { Add-Finding "Spectre/Meltdown Mitigationen manuell deaktiviert" }
+Write-Result "Spectre / Meltdown Schutz" $specSusp $(if ($specSusp) { "Deaktiviert (Override=3, Mask=3)" } else { "Standard" })
+if ($specSusp) { Add-Finding "Spectre / Meltdown Mitigationen manuell deaktiviert" }
  
 # ===========================================================================
 # PCIE VENDOR ID CHECK
 # ===========================================================================
 Write-Section "PCIE VENDOR ID CHECK"
  
-# Bekannte Vendor IDs von FPGA/DMA-Karten-Herstellern
 $knownDmaVendors = @{
     "10EE" = "Xilinx FPGA (PCILeech, ScreamerM2, kompatible DMA-Karten)"
     "1172" = "Altera / Intel FPGA (Stratix, Cyclone)"
     "1204" = "Lattice Semiconductor FPGA (ECP5)"
-    "0BDA" = "Realtek / LambdaConcept (SQRL Acorn, Screamer)"
+    "0BDA" = "LambdaConcept (SQRL Acorn, Screamer)"
     "11E3" = "QuickLogic FPGA"
     "1D6C" = "Artix-7 basierte DMA-Karten (generisch)"
+    "1234" = "QEMU / generisches FPGA-Board"
 }
  
-$allPci = Get-CimInstance -ClassName Win32_PnPEntity -ErrorAction SilentlyContinue |
-          Where-Object { $_.DeviceID -like "PCI\VEN_*" }
- 
+$allPci     = Get-CimInstance -ClassName Win32_PnPEntity -ErrorAction SilentlyContinue |
+              Where-Object { $_.DeviceID -like "PCI\VEN_*" }
 $vendorHits = 0
+ 
 foreach ($dev in $allPci) {
     if ($dev.DeviceID -match "VEN_([0-9A-Fa-f]{4})") {
         $vid = $Matches[1].ToUpper()
         if ($knownDmaVendors.ContainsKey($vid)) {
-            Write-Result "Verdaechtiges Geraet gefunden" $true "$($dev.Name)"
+            Write-Result "Verdaechtiges Geraet" $true "$($dev.Name)"
             Write-Host "   $("VendorID: 0x$vid".PadRight(35)) $($knownDmaVendors[$vid])" -ForegroundColor DarkYellow
-            Add-Finding "Verdaechtiges PCIe-Geraet: $($dev.Name) (VendorID: 0x$vid - $($knownDmaVendors[$vid]))"
+            Add-Finding "Verdaechtiges PCIe-Geraet: $($dev.Name) (VEN: 0x$vid - $($knownDmaVendors[$vid]))"
             $vendorHits++
         }
     }
@@ -282,9 +309,9 @@ if ($vendorHits -eq 0) {
 # ERGEBNIS
 # ===========================================================================
 Write-Host ""
-Write-Host "   $("=" * 75)" -ForegroundColor DarkGray
+Write-Host "   $("=" * 80)" -ForegroundColor DarkGray
 Write-Host "   ERGEBNIS" -ForegroundColor Cyan
-Write-Host "   $("=" * 75)" -ForegroundColor DarkGray
+Write-Host "   $("=" * 80)" -ForegroundColor DarkGray
 Write-Host ""
  
 if ($findings.Count -eq 0) {
