@@ -265,38 +265,128 @@ Write-Result "Spectre / Meltdown Mitigationen" $specSusp $(if ($specSusp) { "Dea
 if ($specSusp) { Add-Finding "Spectre / Meltdown Mitigationen manuell deaktiviert" }
  
 # ===========================================================================
-# PCIE VENDOR ID CHECK
+# PCIE DEVICE CHECK
 # ===========================================================================
-Write-Section "PCIE VENDOR ID CHECK"
+Write-Section "PCIE DEVICE CHECK"
  
-$knownDmaVendors = @{
-    "10EE" = "Xilinx FPGA (PCILeech, ScreamerM2, kompatible DMA-Karten)"
-    "1172" = "Altera / Intel FPGA (Stratix, Cyclone)"
-    "1204" = "Lattice Semiconductor FPGA (ECP5)"
-    "0BDA" = "LambdaConcept (SQRL Acorn, Screamer)"
-    "11E3" = "QuickLogic FPGA"
-    "1D6C" = "Artix-7 basierte DMA-Karten (generisch)"
-    "1234" = "QEMU / generisches FPGA-Board"
+# Bekannte VEN+DEV Kombinationen von DMA-Karten
+$knownDmaDevices = @{
+    "10EE:0666" = "PCILeech FPGA (Standard)"
+    "10EE:7021" = "Screamer M2"
+    "10EE:7022" = "Screamer PCIe"
+    "10EE:7868" = "PCIeScreamer R02"
+    "10EE:4250" = "Enigma X1 DMA"
+    "10EE:0505" = "ZDMA / generisch Xilinx"
+    "10EE:9038" = "Xilinx AXI DMA"
+    "10EE:8011" = "Xilinx PCIe DMA"
+    "1172:E001" = "Altera FPGA DMA"
+    "1172:0004" = "Altera PCIe MegaCore"
+    "1D6C:1337" = "Artix-7 DMA (haeufige ID)"
+    "1234:1111" = "QEMU generisches FPGA"
+    "0BDA:8153" = "SQRL Acorn CLE-215+"
 }
  
-$allPci     = Get-CimInstance -ClassName Win32_PnPEntity -ErrorAction SilentlyContinue |
-              Where-Object { $_.DeviceID -like "PCI\VEN_*" }
-$vendorHits = 0
+# Bekannte Vendor IDs (nur Hersteller, ohne spezifische Device ID)
+$knownDmaVendors = @{
+    "10EE" = "Xilinx FPGA"
+    "1172" = "Altera / Intel FPGA"
+    "1204" = "Lattice Semiconductor FPGA"
+    "11E3" = "QuickLogic FPGA"
+    "1D6C" = "Artix-7 DMA-Karte (generisch)"
+    "1234" = "QEMU / generisches FPGA-Board"
+    "0BDA" = "LambdaConcept (SQRL Acorn / Screamer)"
+}
  
+$allPci    = Get-CimInstance -ClassName Win32_PnPEntity -ErrorAction SilentlyContinue |
+             Where-Object { $_.DeviceID -like "PCI\VEN_*" }
+$totalHits = 0
+ 
+Write-Host ""
+Write-Host "   Exakte Geraete-IDs (VEN+DEV)" -ForegroundColor White
+ 
+$deviceHits = 0
 foreach ($dev in $allPci) {
-    if ($dev.DeviceID -match "VEN_([0-9A-Fa-f]{4})") {
-        $vid = $Matches[1].ToUpper()
-        if ($knownDmaVendors.ContainsKey($vid)) {
-            Write-Result "Verdaechtiges Geraet" $true "$($dev.Name)"
-            Write-Host "   $("VendorID: 0x$vid".PadRight(35)) $($knownDmaVendors[$vid])" -ForegroundColor DarkYellow
-            Add-Finding "Verdaechtiges PCIe-Geraet: $($dev.Name) (VEN: 0x$vid - $($knownDmaVendors[$vid]))"
-            $vendorHits++
+    if ($dev.DeviceID -match "VEN_([0-9A-Fa-f]{4})&DEV_([0-9A-Fa-f]{4})") {
+        $vid    = $Matches[1].ToUpper()
+        $did    = $Matches[2].ToUpper()
+        $key    = "$vid`:$did"
+        if ($knownDmaDevices.ContainsKey($key)) {
+            Write-Result "  TREFFER" $true "$($dev.Name)"
+            Write-Host "   $("  VEN:$vid DEV:$did".PadRight(35)) $($knownDmaDevices[$key])" -ForegroundColor DarkYellow
+            Add-Finding "Bekannte DMA-Karte gefunden: $($dev.Name) (VEN:$vid DEV:$did - $($knownDmaDevices[$key]))"
+            $deviceHits++
+            $totalHits++
         }
     }
 }
+if ($deviceHits -eq 0) {
+    Write-Result "  Exakte Device ID" $false "Keine bekannten DMA-Karten gefunden"
+}
  
+Write-Host ""
+Write-Host "   Vendor ID (Hersteller-basiert)" -ForegroundColor White
+ 
+$vendorHits = 0
+foreach ($dev in $allPci) {
+    if ($dev.DeviceID -match "VEN_([0-9A-Fa-f]{4})&DEV_([0-9A-Fa-f]{4})") {
+        $vid = $Matches[1].ToUpper()
+        $did = $Matches[2].ToUpper()
+        $key = "$vid`:$did"
+        if ($knownDmaVendors.ContainsKey($vid) -and -not $knownDmaDevices.ContainsKey($key)) {
+            Write-Result "  Verdaechtiger Hersteller" $true "$($dev.Name)"
+            Write-Host "   $("  VEN:$vid DEV:$did".PadRight(35)) $($knownDmaVendors[$vid])" -ForegroundColor DarkYellow
+            Add-Finding "Verdaechtiger FPGA-Hersteller: $($dev.Name) (VEN:$vid DEV:$did - $($knownDmaVendors[$vid]))"
+            $vendorHits++
+            $totalHits++
+        }
+    }
+}
 if ($vendorHits -eq 0) {
-    Write-Result "Vendor ID Check" $false "Keine bekannten DMA-Karten-Hersteller gefunden"
+    Write-Result "  Vendor ID" $false "Keine verdaechtigen FPGA-Hersteller gefunden"
+}
+ 
+# ===========================================================================
+# UNBEKANNTE / FEHLERHAFTE GERAETE
+# ===========================================================================
+Write-Section "UNBEKANNTE UND FEHLERHAFTE GERAETE"
+ 
+# Geraete ohne Treiber oder mit Fehler sind verdaechtig - DMA-Karten erscheinen
+# haeufig als "Unbekanntes Geraet" wenn kein passender Treiber installiert ist
+$unknownDevices = Get-CimInstance -ClassName Win32_PnPEntity -ErrorAction SilentlyContinue |
+                  Where-Object {
+                      $_.DeviceID -like "PCI\*" -and (
+                          $_.ConfigManagerErrorCode -ne 0 -or
+                          $_.Name -match "Unbekannt|Unknown|Base System Device" -or
+                          $_.PNPClass -eq $null -or
+                          $_.PNPClass -eq ""
+                      )
+                  }
+ 
+$unknownHits = 0
+foreach ($dev in $unknownDevices) {
+    $errCode = $dev.ConfigManagerErrorCode
+    $errText = switch ($errCode) {
+        1  { "Kein Treiber" }
+        10 { "Geraet kann nicht starten" }
+        18 { "Treiber neu installieren" }
+        28 { "Treiber nicht installiert" }
+        43 { "Windows hat Geraet angehalten" }
+        default { "Fehlercode $errCode" }
+    }
+    $vid = ""
+    $did = ""
+    if ($dev.DeviceID -match "VEN_([0-9A-Fa-f]{4})&DEV_([0-9A-Fa-f]{4})") {
+        $vid = $Matches[1].ToUpper()
+        $did = $Matches[2].ToUpper()
+    }
+    Write-Result "  $($dev.Name)" $true "$errText  |  VEN:$vid DEV:$did"
+    Add-Finding "Unbekanntes / fehlerhaftes PCIe-Geraet: $($dev.Name) VEN:$vid DEV:$did ($errText)"
+    $unknownHits++
+    $totalHits++
+}
+ 
+if ($unknownHits -eq 0) {
+    Write-Result "  Geraete ohne Treiber" $false "Keine unbekannten PCIe-Geraete gefunden"
 }
  
 # ===========================================================================
