@@ -578,9 +578,7 @@ if ($findings.Count -eq 0) {
     }
 }
 
-Write-Host ""
-Write-Host "Check PCIe Geräte via https://devicehunt.com/" -ForegroundColor DarkGray
-Write-Host ""
+Write-Host "   Check PCIe Geräte via https://devicehunt.com/" -ForegroundColor Yellow
 
 Write-Host ""
 Read-Host -Prompt "   Drücke ENTER zum Beenden"
