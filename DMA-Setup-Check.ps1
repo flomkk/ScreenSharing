@@ -65,7 +65,31 @@ foreach ($mod in $ramModules) {
 
 $gpus = Get-CimInstance -ClassName Win32_VideoController -ErrorAction SilentlyContinue
 foreach ($gpu in $gpus) {
-    $vram = if ($gpu.AdapterRAM -gt 0) { "$([math]::Round($gpu.AdapterRAM/1GB,0)) GB" } else { "n/v" }
+    # Win32_VideoController.AdapterRAM ist 32-bit - max 4 GB darstellbar
+    # Korrekte VRAM-Abfrage ueber Registry (DXGI-Eintrag von Windows befuellt)
+    $vram = "n/v"
+    try {
+        $regBase = "HKLM:\SYSTEM\ControlSet001\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+        $subkeys = Get-ChildItem -Path $regBase -ErrorAction SilentlyContinue |
+                   Where-Object { $_.GetValue("DriverDesc") -like "*$($gpu.Name.Split(" ")[2..10] -join " ")*" -or
+                                  $_.GetValue("DriverDesc") -eq $gpu.Name }
+        if (-not $subkeys) {
+            # Fallback: alle Subkeys nach passendem Treiber durchsuchen
+            $subkeys = Get-ChildItem -Path $regBase -ErrorAction SilentlyContinue |
+                       Where-Object { $_.GetValue("HardwareInformation.MemorySize") -gt 0 }
+        }
+        foreach ($key in $subkeys) {
+            $memRaw = $key.GetValue("HardwareInformation.MemorySize")
+            if ($memRaw -and [uint64]$memRaw -gt 0) {
+                $vram = "$([math]::Round([uint64]$memRaw / 1GB, 0)) GB"
+                break
+            }
+        }
+    } catch { }
+    # Letzter Fallback: DXDIAG-Wert aus WMI mit uint64-Cast
+    if ($vram -eq "n/v" -and $gpu.AdapterRAM -gt 0) {
+        $vram = "$([math]::Round([uint64][uint32]$gpu.AdapterRAM / 1GB, 0)) GB (approx.)"
+    }
     Write-Result "GPU" $false "$($gpu.Name)  VRAM: $vram  Treiber: $($gpu.DriverVersion)"
 }
 
